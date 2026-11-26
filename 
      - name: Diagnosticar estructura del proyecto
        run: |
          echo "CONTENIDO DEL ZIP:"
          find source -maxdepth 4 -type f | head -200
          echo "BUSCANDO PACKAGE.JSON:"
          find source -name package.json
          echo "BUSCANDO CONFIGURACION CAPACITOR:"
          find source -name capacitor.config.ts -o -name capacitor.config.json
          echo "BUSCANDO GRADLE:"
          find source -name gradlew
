@@ -9,3 +9,4 @@ YAML
           find source -name capacitor.config.ts -o -name capacitor.config.json
           echo "BUSCANDO GRADLE:"
           find source -name gradlew
+YAML
