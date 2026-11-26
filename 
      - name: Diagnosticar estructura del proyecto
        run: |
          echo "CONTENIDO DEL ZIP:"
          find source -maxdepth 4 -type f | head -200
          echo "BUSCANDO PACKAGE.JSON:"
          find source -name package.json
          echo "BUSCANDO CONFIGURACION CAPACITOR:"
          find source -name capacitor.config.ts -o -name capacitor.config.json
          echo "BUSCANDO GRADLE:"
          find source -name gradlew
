@@ -1,4 +1,4 @@
-
+YAML
       - name: Diagnosticar estructura del proyecto
         run: |
           echo "CONTENIDO DEL ZIP:"
