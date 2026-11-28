@@ -1,2 +1,7 @@
 import { defineConfig } from 'vite';
-export default defineConfig({ base: '/', build: { outDir: 'dist', emptyOutDir: true } });
+
+// Relative asset paths are required by Capacitor's local WebView (Android).
+export default defineConfig({
+  base: './',
+  build: { outDir: 'dist', emptyOutDir: true }
+});
