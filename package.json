@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "vite": "^6.0.0",
-    "@capacitor/cli": "^7.4.3"
+    "@capacitor/cli": "^7.4.3",
+    "typescript": "^5.7.3"
   }
 }
