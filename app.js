@@ -108,17 +108,22 @@ renderCostSheetCalculation();
 const TAX_PROFILE_KEY='comerciante-tcp-tax-profile';
 let taxProfile=(()=>{try{return JSON.parse(localStorage.getItem(TAX_PROFILE_KEY)||'{}')||{};}catch{return {};}})();
 let lastTaxEstimate=null;
-function renderTaxModule(){\n const currentMonth=today().slice(0,7);\n const monthSales=book.sales.filter(x=>String(x.date||'').startsWith(currentMonth)).reduce((n,x)=>n+Number(x.total||0),0)/100;\n if(!$('taxMonthGross').value)$('taxMonthGross').value=monthSales.toFixed(2);
+function renderTaxModule(){
+ const currentMonth=today().slice(0,7);
+ const monthSales=book.sales.filter(x=>String(x.date||'').startsWith(currentMonth)).reduce((n,x)=>n+Number(x.total||0),0)/100;
+ if(!$('taxMonthGross').value)$('taxMonthGross').value=monthSales.toFixed(2);
  $('taxActivity').value=taxProfile.activity||'';
  $('taxMonthlyAdvance').value=taxProfile.monthlyAdvance??0;
- $('taxPeriod').value ||= today().slice(0,7);\n $('taxMonth').value ||= today().slice(0,7);
+ $('taxPeriod').value ||= today().slice(0,7);
+ $('taxMonth').value ||= today().slice(0,7);
  $('taxObligationDate').value ||= today();
  const year=today().slice(0,4);
  const yearSales=book.sales.filter(x=>String(x.date||'').startsWith(year)).reduce((n,x)=>n+Number(x.total||0),0)/100;
  const yearCogs=book.sales.filter(x=>String(x.date||'').startsWith(year)).reduce((n,x)=>n+Number(x.cogs||0),0)/100;
  const yearExpenses=book.expenses.filter(x=>String(x.date||'').startsWith(year)).reduce((n,x)=>n+Number(x.value||0),0)/100;
  if(!$('taxGross').value)$('taxGross').value=yearSales.toFixed(2);
- if(!$('taxExpenses').value)$('taxExpenses').value=(yearCogs+yearExpenses).toFixed(2);\n $('taxAdvances').value=((book.taxPayments||[]).filter(x=>x.code==='IRP-ANTICIPO'&&String(x.date||'').startsWith(year)).reduce((n,x)=>n+Number(x.value||0),0)/100).toFixed(2);
+ if(!$('taxExpenses').value)$('taxExpenses').value=(yearCogs+yearExpenses).toFixed(2);
+ $('taxAdvances').value=((book.taxPayments||[]).filter(x=>x.code==='IRP-ANTICIPO'&&String(x.date||'').startsWith(year)).reduce((n,x)=>n+Number(x.value||0),0)/100).toFixed(2);
  renderTaxObligations();
 }
 $('createMonthlyTax').onclick=()=>{const value=Number($('taxMonthlyAdvance').value||0);if(!Number.isFinite(value)||value<=0)return alert('Introduce la cuota mensual oficial comunicada por ONAT.');try{const doc=registerTaxObligation(book,{date:today(),code:'IRP-ANTICIPO',description:'Cuota mensual anticipada de IRP · TCP',period:today().slice(0,7),value});saveBook();renderTaxObligations();alert('Cuota anticipada registrada: '+doc);}catch(err){alert(err.message);}};
@@ -131,7 +136,8 @@ $('taxAnnualForm').onsubmit=e=>{e.preventDefault();try{
  }catch(err){alert(err.message);}};
 
 $('taxMonthlyForm').onsubmit=e=>{e.preventDefault();try{const r=calculateTcpMonthlyTaxes({grossIncome:Number($('taxMonthGross').value),exemptCommissionIncome:Number($('taxExemptCommissions').value),electronicPayment:$('taxElectronic').checked});const period=$('taxMonth').value;const box=$('taxMonthlyResult');box.innerHTML=[['Impuesto ventas/servicios · 10%',r.salesServicesTax],['IRP anticipado · 5% sobre exceso de 3 260 CUP',r.incomeTaxAdvance],['Bonificación electrónica · 3%',r.totalBonus],['Total mensual estimado',r.totalAfterBonus]].map(([k,v])=>'<article class="metric"><small>'+k+'</small><strong>'+money(v)+'</strong></article>').join('')+'<p class="muted">Ingresos gravados para ventas/servicios: '+money(r.taxableSalesServicesIncome)+' CUP. IRP anticipado calculado sobre ingresos totales del mes por encima de 3 260 CUP.</p><button type="button" id="postMonthlySalesTax">Registrar ventas/servicios</button> <button type="button" id="postMonthlyAdvanceTax">Registrar anticipo IRP</button>';const add=(code,desc,value)=>{if(value<=0)return alert('El importe es cero; no se creó obligación.');const doc=registerTaxObligation(book,{date:today(),code,description:desc,period,value});saveBook();renderTaxObligations();alert('Obligación registrada: '+doc);};$('postMonthlySalesTax').onclick=()=>add('VENTAS-SERVICIOS','Impuesto mensual sobre ventas y servicios · TCP',r.salesServicesAfterBonus);$('postMonthlyAdvanceTax').onclick=()=>add('IRP-ANTICIPO','Pago anticipado mensual de IRP · TCP',r.incomeAdvanceAfterBonus);}catch(err){alert(err.message);}};
-\nfunction renderTaxObligations(){const rows=book.taxObligations||[];$('taxObligationList').innerHTML=rows.length?'<h3>Libro de obligaciones</h3><div class="tablewrap"><table><thead><tr><th>Fecha / período</th><th>Concepto</th><th>Determinado</th><th>Pagado</th><th>Pendiente</th><th>Acción</th></tr></thead><tbody>'+rows.slice().reverse().map(x=>'<tr><td>'+esc(x.date)+'<br>'+esc(x.period)+'</td><td>'+esc(x.description)+'<br><small>'+esc(x.id)+'</small></td><td>'+money(x.value/100)+'</td><td>'+money(x.paid/100)+'</td><td>'+money(x.balance/100)+'</td><td>'+(x.balance>0?'<button type="button" data-taxpay="'+esc(x.id)+'">Registrar pago</button>':'Pagado')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="muted">Todavía no hay obligaciones tributarias registradas.</p>';
+
+function renderTaxObligations(){const rows=book.taxObligations||[];$('taxObligationList').innerHTML=rows.length?'<h3>Libro de obligaciones</h3><div class="tablewrap"><table><thead><tr><th>Fecha / período</th><th>Concepto</th><th>Determinado</th><th>Pagado</th><th>Pendiente</th><th>Acción</th></tr></thead><tbody>'+rows.slice().reverse().map(x=>'<tr><td>'+esc(x.date)+'<br>'+esc(x.period)+'</td><td>'+esc(x.description)+'<br><small>'+esc(x.id)+'</small></td><td>'+money(x.value/100)+'</td><td>'+money(x.paid/100)+'</td><td>'+money(x.balance/100)+'</td><td>'+(x.balance>0?'<button type="button" data-taxpay="'+esc(x.id)+'">Registrar pago</button>':'Pagado')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="muted">Todavía no hay obligaciones tributarias registradas.</p>';
  document.querySelectorAll('[data-taxpay]').forEach(b=>b.onclick=()=>{const ob=rows.find(x=>x.id===b.dataset.taxpay);if(!ob)return;const amountValue=prompt('Saldo pendiente: '+money(ob.balance/100)+' CUP. Importe del pago:');if(amountValue===null)return;const value=Number(amountValue);const method=prompt('Forma de pago: escribe Efectivo, Transferencia o Tarjeta','Transferencia')||'Transferencia';try{const doc=payTaxObligation(book,{date:today(),obligationId:ob.id,value,method});saveBook();renderTaxObligations();alert('Pago registrado en contabilidad: '+doc);}catch(err){alert(err.message);}});
 }
 $('taxObligationForm').onsubmit=e=>{e.preventDefault();try{const doc=registerTaxObligation(book,{date:$('taxObligationDate').value,code:$('taxCode').value,description:$('taxDescription').value||$('taxCode').selectedOptions[0].textContent,period:$('taxPeriod').value,value:Number($('taxObligationValue').value)});saveBook();e.target.reset();$('taxObligationDate').value=today();$('taxPeriod').value=today().slice(0,7);renderTaxObligations();alert('Obligación incorporada al libro diario y mayor: '+doc);}catch(err){alert(err.message);}};
