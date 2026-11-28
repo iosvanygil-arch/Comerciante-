@@ -35,12 +35,15 @@ jobs:
           java-version: '17'
 
       - name: Preparar Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Instalar paquetes Android necesarios
+        shell: bash
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          set -euo pipefail
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -n "$SDKMANAGER"
+          chmod +x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Instalar dependencias
         run: npm install --no-audit --no-fund
