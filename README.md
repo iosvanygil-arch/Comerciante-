@@ -24,7 +24,7 @@ La configuración de Capacitor está en `capacitor.config.ts`. El flujo de GitHu
 Abre la pestaña **Actions**, selecciona **COMERCIANTE - pruebas y APK Android** y consulta la ejecución. El APK aparece en **Artifacts** cuando todos los pasos terminan correctamente.
 
 ## Windows
-`INICIAR_WINDOWS.bat` inicia la versión local con Node.js. Todavía no es un instalador EXE independiente.
+El flujo `COMERCIANTE - construir Windows` genera dos entregables para Windows: instalador NSIS y ejecutable portable. Se construyen en GitHub Actions con Electron; descarga ambos desde **Actions → ejecución → Artifacts**. La primera compilación debe validarse antes de distribuirla. `INICIAR_WINDOWS.bat` permanece como opción de desarrollo con Node.js.
 
 ## Pendiente de validación
 La compilación automatizada debe terminar correctamente antes de considerar entregable el APK. Impresión, facturas con garantías, alertas de vencimiento, permisos multiusuario, sincronización entre dispositivos y pruebas físicas siguen pendientes de implementación o validación.
