@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createProduct, upsertProduct, findProductByScan, nextInternalSku, validateImageFile, expiryStatus, consumeExpiryLots } from './catalog.js';
+import { createProduct, upsertProduct, findProductByScan, nextInternalSku, validateImageFile, expiryStatus, consumeExpiryLots, assertPerishableSaleAllowed } from './catalog.js';
 
 test('alta de artículo con foto opcional y edición conserva el identificador', () => {
   let items = upsertProduct([], { id:'p1', name:'Arrocera EKO', sku:'ESH-000001', cost:20, price:30, stock:4 });
@@ -64,4 +64,14 @@ test('rechaza fechas de vencimiento inválidas',()=>{
 test('bloquea venta de perecederos sin lote vigente o con solo stock sin fecha',()=>{
  const p=createProduct({id:'p4',name:'Queso',stock:4,perishable:true});
  assert.throws(()=>consumeExpiryLots(p,1,'2026-11-28'),/Registra lote y vencimiento/);
+});
+
+
+test('bloquea antes de registrar la venta si los lotes vigentes no cubren la cantidad',()=>{
+ const p=createProduct({id:'p5',name:'Leche',stock:5,perishable:true,expiryLots:[
+  {batch:'Vencido',expiry:'2026-11-01',qty:2},{batch:'Vigente',expiry:'2026-12-20',qty:1}
+ ]});
+ assert.equal(assertPerishableSaleAllowed(p,1,'2026-11-28'),true);
+ assert.throws(()=>assertPerishableSaleAllowed(p,2,'2026-11-28'),/Se bloqueó la venta/);
+ assert.throws(()=>assertPerishableSaleAllowed(p,3,'2026-11-28'),/Se bloqueó la venta/);
 });
