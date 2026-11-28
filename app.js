@@ -60,12 +60,13 @@ $('completeSale').onclick=async()=>{
   const date=$('saleDate').value,method=$('posMethod').value,total=cartSum(),tender=Number($('posReceived').value);
   if(!date||!Number.isFinite(tender)||tender<0)throw new Error('Revisa la fecha y el importe recibido.');
   if(method==='Crédito'&&tender!==0)throw new Error('Para ventas a crédito, el importe recibido debe ser cero.');
-  if(tender>total+0.000001)throw new Error('El importe recibido supera el total. Revisa el importe; el cambio se calcula para efectivo.');
+  if(method!=='Efectivo'&&tender>total+0.000001)throw new Error('El importe recibido no puede superar el total en cobros que no sean efectivo.');
+  const applied=method==='Crédito'?0:Math.min(tender,total);
   for(const line of cart){const p=products.find(x=>x.sku===line.sku);if(!p||line.qty>Number(p.stock))throw new Error('Stock insuficiente para '+(p?.name||line.sku));}
-  let remaining=method==='Crédito'?0:tender, docs=[];
+  let remaining=applied, docs=[];
   for(let i=0;i<cart.length;i++){
    const line=cart[i],lineTotal=Number((line.qty*line.price).toFixed(2));
-   const paid=i===cart.length-1?remaining:Number((total?lineTotal/total*(method==='Crédito'?0:tender):0).toFixed(2));
+   const paid=i===cart.length-1?remaining:Number((total?lineTotal/total*applied:0).toFixed(2));
    const doc=sale(book,{date,sku:line.sku,qty:line.qty,total:lineTotal,received:paid,method:method==='Crédito'?'Crédito':method});
    remaining=Number((remaining-paid).toFixed(2));docs.push(doc);
   }
