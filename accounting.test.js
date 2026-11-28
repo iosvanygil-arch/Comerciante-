@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createBook, addProduct, purchase, sale, expense, collectReceivable, paySupplier, payExpensePayable, dailyIPV, trialBalance, inventoryValuation, saveDailyClosing, receivables, payables } from '../src/accounting.js';
+import { createBook, addProduct, purchase, sale, expense, collectReceivable, paySupplier, payExpensePayable, dailyIPV, trialBalance, inventoryValuation, saveDailyClosing, receivables, payables } from './accounting.js';
 const D='2026-11-13', D2='2026-11-14';
 
 test('flujo positivo: compra pagada, venta efectivo, gasto y cierre cuadrado',()=>{
@@ -74,7 +74,7 @@ test('saldos por cobrar visibles y bloquea cobro mayor al saldo',()=>{
 });
 
 test('editar ficha de artículo registra ajuste de inventario y conserva equilibrio', async () => {
-  const { updateProductMaster, trialBalance } = await import('../src/accounting.js');
+  const { updateProductMaster, trialBalance } = await import('./accounting.js');
   const b = createBook({date:'2026-11-13'});
   addProduct(b,{sku:'ESH-000001',name:'Producto',qty:10,unitCost:5,salePrice:8});
   updateProductMaster(b,{sku:'ESH-000001',name:'Producto actualizado',qty:8,unitCost:5,salePrice:9,date:'2026-11-13'});
@@ -85,7 +85,7 @@ test('editar ficha de artículo registra ajuste de inventario y conserva equilib
 });
 
 test('crear ficha nueva con inventario inicial genera asiento de apertura', async () => {
-  const { updateProductMaster, trialBalance } = await import('../src/accounting.js');
+  const { updateProductMaster, trialBalance } = await import('./accounting.js');
   const b=createBook({date:'2026-11-13'});
   updateProductMaster(b,{sku:'ESH-000002',name:'Nuevo',qty:3,unitCost:4,salePrice:7});
   assert.equal(b.products['ESH-000002'].qty,3);
