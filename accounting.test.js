@@ -91,3 +91,13 @@ test('crear ficha nueva con inventario inicial genera asiento de apertura', asyn
   assert.equal(b.products['ESH-000002'].qty,3);
   assert.equal(trialBalance(b).balanced,true);
 });
+
+test('el cobro posterior no duplica la venta en el desglose del método original',()=>{
+ const b=createBook({date:D}); addProduct(b,{sku:'J',name:'Producto J'});
+ purchase(b,{date:D,sku:'J',qty:3,unitCost:2});
+ const sid=sale(b,{date:D,sku:'J',qty:1,total:10,received:4,method:'Efectivo'});
+ collectReceivable(b,{date:D2,saleId:sid,value:6,method:'Efectivo'});
+ assert.equal(dailyIPV(b,D).salesByMethod.Efectivo,4);
+ assert.equal(dailyIPV(b,D2).salesByMethod.Efectivo,undefined);
+ assert.equal(dailyIPV(b,D2).collectionsByMethod.Efectivo,6);
+});
