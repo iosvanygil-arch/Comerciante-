@@ -234,20 +234,24 @@ export function registerTaxObligation(book, { date, code, description, period, v
   book.taxObligations.push({ id: doc, date, code: String(code), description: String(description || code), period: String(period || ''), value: v, paid: 0, balance: v });
   return doc;
 }
-export function payTaxObligation(book, { date, obligationId, value, method = 'Efectivo' }) {
+export function payTaxObligation(book, { date, obligationId, value, method = 'Efectivo', electronicPayment = false }) {
   const obligation = (book.taxObligations || []).find(x => x.id === obligationId);
   if (!obligation) throw new Error('No se encontró la obligación tributaria.');
   const v = cents(value);
   if (v <= 0 || v > obligation.balance) throw new Error('El pago debe ser mayor que cero y no superar el saldo pendiente.');
   const doc = id(book, 'PAGO-ONAT');
+  const electronic = Boolean(electronicPayment);
+  const bonus = electronic ? Math.round(v * 0.03) : 0;
+  const cashPaid = v - bonus;
   entry(book, date, doc, [
     { account: 'Tributos por pagar: ' + obligation.code, debit: v, credit: 0 },
-    { account: moneyAccount(method), debit: 0, credit: v }
+    ...(cashPaid ? [{ account: moneyAccount(method), debit: 0, credit: cashPaid }] : []),
+    ...(bonus ? [{ account: 'Bonificación por pago electrónico', debit: 0, credit: bonus }] : [])
   ]);
   obligation.paid += v;
   obligation.balance -= v;
   book.taxPayments ??= [];
-  book.taxPayments.push({ id: doc, date, obligationId, code: obligation.code, value: v, method });
-  cashMove(book, date, doc, 'out', v, method);
+  book.taxPayments.push({ id: doc, date, obligationId, code: obligation.code, value: v, cashPaid, bonus, electronicPayment: electronic, method });
+  cashMove(book, date, doc, 'out', cashPaid, method);
   return doc;
 }
