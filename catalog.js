@@ -3,7 +3,7 @@ const clean = (v) => String(v ?? '').trim();
 
 export function createProduct({ id, name, sku = '', barcode = '', qrValue = '', image = null, description = '', category = '', unit = 'unidad', cost = 0, price = 0, stock = 0, minStock = 0, perishable = false, expiryLots = [] }) {
   const product = {
-    id: clean(id) || globalThis.crypto?.randomUUID?.() || `prod-${Date.now()}`,
+    id: clean(id) || globalThis.crypto?.randomUUID?.() || 'prod-' + Date.now(),
     name: clean(name), sku: clean(sku), barcode: clean(barcode), qrValue: clean(qrValue),
     image, description: clean(description), category: clean(category), unit: clean(unit) || 'unidad',
     cost: Number(cost), price: Number(price), stock: Number(stock), minStock: Number(minStock),
@@ -34,43 +34,8 @@ export function findProductByScan(products, value) {
 }
 
 export function nextInternalSku(products, prefix = 'ESH') {
-  const nums = products.map(p => new RegExp(`^${prefix}-(\\d+)// Catálogo de productos local-first. La imagen se conserva como Blob/DataURL en la base local.
-const clean = (v) => String(v ?? '').trim();
-
-export function createProduct({ id, name, sku = '', barcode = '', qrValue = '', image = null, description = '', category = '', unit = 'unidad', cost = 0, price = 0, stock = 0, minStock = 0, perishable = false, expiryLots = [] }) {
-  const product = {
-    id: clean(id) || globalThis.crypto?.randomUUID?.() || `prod-${Date.now()}`,
-    name: clean(name), sku: clean(sku), barcode: clean(barcode), qrValue: clean(qrValue),
-    image, description: clean(description), category: clean(category), unit: clean(unit) || 'unidad',
-    cost: Number(cost), price: Number(price), stock: Number(stock), minStock: Number(minStock),
-    perishable: Boolean(perishable), expiryLots: Array.isArray(expiryLots) ? expiryLots.map(l => ({ batch: clean(l.batch), expiry: clean(l.expiry), qty: Number(l.qty) })).filter(l => /^\d{4}-\d{2}-\d{2}$/.test(l.expiry) && Number.isFinite(Date.parse(l.expiry + 'T00:00:00Z')) && Number.isFinite(l.qty) && l.qty > 0) : [],
-    updatedAt: new Date().toISOString()
-  };
-  if (!product.name) throw new Error('El nombre del artículo es obligatorio');
-  if (![product.cost, product.price, product.stock, product.minStock, ...product.expiryLots.map(l => l.qty)].every(Number.isFinite)) throw new Error('Hay valores numéricos inválidos');
-  if (product.cost < 0 || product.price < 0 || product.stock < 0 || product.minStock < 0) throw new Error('Costo, precio y existencias no pueden ser negativos');
-  if (product.image && !(product.image instanceof Blob) && typeof product.image !== 'string') throw new Error('La imagen debe ser un archivo o una referencia local');
-  return product;
-}
-
-export function upsertProduct(products, input) {
-  const next = createProduct(input);
-  const duplicate = products.find(p => p.id !== next.id && ((next.sku && p.sku === next.sku) || (next.barcode && p.barcode === next.barcode)));
-  if (duplicate) throw new Error('El SKU o código de barras ya pertenece a otro artículo');
-  const index = products.findIndex(p => p.id === next.id);
-  const result = products.slice();
-  if (index < 0) result.push(next); else result[index] = next;
-  return result;
-}
-
-export function findProductByScan(products, value) {
-  const code = clean(value);
-  if (!code) return null;
-  return products.find(p => p.barcode === code || p.sku === code || p.qrValue === code) ?? null;
-}
-
-).exec(p.sku || '')).filter(Boolean).map(m => Number(m[1]));
-  return `${prefix}-${String(Math.max(0, ...nums) + 1).padStart(6, '0')}`;
+  const nums = products.map(p => new RegExp('^' + prefix + '-(\\d+)$').exec(p.sku || '')).filter(Boolean).map(m => Number(m[1]));
+  return prefix + '-' + String(Math.max(0, ...nums) + 1).padStart(6, '0');
 }
 
 export function validateImageFile(file) {
@@ -102,7 +67,6 @@ export async function startCameraScanner(video, onCode, onError = () => {}) {
   requestAnimationFrame(scan);
   return stop;
 }
-
 
 export function expiryStatus(product, today = new Date().toISOString().slice(0,10), warningDays = 30) {
   const day = 86400000, now = Date.parse(today + 'T00:00:00Z');
