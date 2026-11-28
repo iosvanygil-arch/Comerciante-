@@ -45,3 +45,20 @@ export async function deleteProductLocal(id) {
     tx.onerror = () => { db.close(); reject(tx.error || new Error('No se pudo eliminar el artículo')); };
   });
 }
+
+
+// Reemplazo de catálogo en una sola transacción: si una escritura falla,
+// IndexedDB revierte también el borrado inicial y conserva los datos previos.
+export async function replaceProductsLocal(products) {
+  if (!Array.isArray(products)) throw new Error('El catálogo de restauración no es válido');
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    store.clear();
+    for (const product of products) store.put(product);
+    tx.oncomplete = () => { db.close(); resolve(true); };
+    tx.onerror = () => { db.close(); reject(tx.error || new Error('No se pudo restaurar el catálogo')); };
+    tx.onabort = () => { db.close(); reject(tx.error || new Error('Restauración cancelada; se conservaron los datos anteriores')); };
+  });
+}
