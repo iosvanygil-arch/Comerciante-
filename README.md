@@ -35,3 +35,10 @@ La compilación automatizada debe terminar correctamente antes de considerar ent
 - Sugiere precio de venta a partir del margen deseado sobre el precio.
 - Guarda fichas separadas del libro contable y del inventario.
 - Incluye las fichas en las copias de seguridad y su restauración.
+
+
+## Respaldo por correo electrónico
+
+En Copias de seguridad, «Compartir respaldo por correo» prepara el archivo JSON completo. En dispositivos que admiten compartir archivos, permite elegir una aplicación de correo y adjuntar el respaldo directamente. Si el navegador no admite adjuntos compartidos, descarga el archivo y abre un borrador de correo para adjuntarlo manualmente. COMERCIANTE no almacena contraseñas ni envía datos sin intervención del usuario. La restauración sigue siendo manual y reemplaza los datos locales tras confirmación.
+
+La sincronización continua entre Android y Windows (Wi-Fi/Bluetooth) aún requiere un motor de sincronización con identificadores únicos, registro de cambios y resolución de conflictos; no se considera implementada por esta función de correo.
