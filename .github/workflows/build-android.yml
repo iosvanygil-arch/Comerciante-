@@ -57,6 +57,9 @@ jobs:
       - name: Crear proyecto Android
         run: npx cap add android
 
+      - name: Conceder permiso de cámara al escáner
+        run: node scripts/ensure-android-camera-permission.mjs
+
       - name: Sincronizar archivos Android
         run: npx cap sync android
 
