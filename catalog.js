@@ -7,7 +7,7 @@ export function createProduct({ id, name, sku = '', barcode = '', qrValue = '', 
     name: clean(name), sku: clean(sku), barcode: clean(barcode), qrValue: clean(qrValue),
     image, description: clean(description), category: clean(category), unit: clean(unit) || 'unidad',
     cost: Number(cost), price: Number(price), stock: Number(stock), minStock: Number(minStock),
-    perishable: Boolean(perishable), expiryLots: Array.isArray(expiryLots) ? expiryLots.map(l => ({ batch: clean(l.batch), expiry: clean(l.expiry), qty: Number(l.qty) })).filter(l => /^\\d{4}-\\d{2}-\\d{2}$/.test(l.expiry) && Number.isFinite(Date.parse(l.expiry + 'T00:00:00Z')) && Number.isFinite(l.qty) && l.qty > 0) : [],
+    perishable: Boolean(perishable), expiryLots: Array.isArray(expiryLots) ? expiryLots.map(l => ({ batch: clean(l.batch), expiry: clean(l.expiry), qty: Number(l.qty) })).filter(l => /^\d{4}-\d{2}-\d{2}$/.test(l.expiry) && Number.isFinite(Date.parse(l.expiry + 'T00:00:00Z')) && Number.isFinite(l.qty) && l.qty > 0) : [],
     updatedAt: new Date().toISOString()
   };
   if (!product.name) throw new Error('El nombre del artículo es obligatorio');
@@ -34,7 +34,7 @@ export function findProductByScan(products, value) {
 }
 
 export function nextInternalSku(products, prefix = 'ESH') {
-  const nums = products.map(p => new RegExp(`^${prefix}-(\\d+)$`).exec(p.sku || '')).filter(Boolean).map(m => Number(m[1]));
+  const nums = products.map(p => new RegExp(`^${prefix}-(\d+)$`).exec(p.sku || '')).filter(Boolean).map(m => Number(m[1]));
   return `${prefix}-${String(Math.max(0, ...nums) + 1).padStart(6, '0')}`;
 }
 
