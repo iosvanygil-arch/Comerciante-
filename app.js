@@ -5,6 +5,8 @@ import { createProduct, upsertProduct, findProductByScan, nextInternalSku, valid
 import { createBook, addProduct, updateProductMaster, sale, saleCart, purchase, expense, dailyIPV, saveDailyClosing, trialBalance } from './accounting.js';
 import { listProductsLocal, saveProductLocal, deleteProductLocal, replaceProductsLocal } from './local-store.js';
 import { validateBackupPayload } from './backup-core.js';
+import { calculateTcpAnnualTax, TCP_TAX_RULES } from './tax-core.js';
+import { registerTaxObligation, payTaxObligation } from './accounting.js';
 
 const $ = id => document.getElementById(id);
 const today = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -13,7 +15,7 @@ let book = JSON.parse(localStorage.getItem('comerciante-book') || 'null') || cre
 const saveBook = () => localStorage.setItem('comerciante-book', JSON.stringify(book));
 const money = n => new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n||0));
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function view(name){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.view===name));window.scrollTo(0,0);if(name==='products')renderProducts();if(name==='costSheets')renderCostSheetHistory();if(name==='perishables')renderPerishables();if(name==='invoices')renderInvoices();if(name==='sales')renderSales();if(name==='purchases')renderPurchases();if(name==='expenses')renderExpenses();if(name==='dashboard')renderDashboard();}
+function view(name){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.view===name));window.scrollTo(0,0);if(name==='products')renderProducts();if(name==='costSheets')renderCostSheetHistory();if(name==='perishables')renderPerishables();if(name==='invoices')renderInvoices();if(name==='sales')renderSales();if(name==='purchases')renderPurchases();if(name==='expenses')renderExpenses();if(name==='dashboard')renderDashboard();if(name==='tax')renderTaxModule();}
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>view(b.dataset.view)));
 document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>view(b.dataset.go)));
 async function load(){products=await listProductsLocal();for(const p of products){if(!book.products[p.sku])addProduct(book,{sku:p.sku,name:p.name,qty:p.stock,unitCost:p.cost,salePrice:p.price});else p.stock=book.products[p.sku].qty;await saveProductLocal(p);}saveBook();renderDashboard();}
@@ -100,6 +102,36 @@ Object.values(csFields).forEach(id=>$(id).addEventListener('input',renderCostShe
 $('costSheetForm').addEventListener('submit',e=>{e.preventDefault();try{const result=renderCostSheetCalculation();if(!result)return;const sheet=createCostSheet({name:$('csName').value,code:$('csCode').value,unit:$('csUnit').value,...costSheetInput()});costSheets.push(sheet);localStorage.setItem(COST_SHEET_KEY,JSON.stringify(costSheets));renderCostSheetHistory();alert('Ficha de costo guardada. No se modificó la contabilidad ni el inventario.');}catch(err){alert(err.message);}});
 $('costSheetForm').addEventListener('reset',()=>setTimeout(renderCostSheetCalculation,0));
 renderCostSheetCalculation();
+
+
+/* ONAT TCP: estimación fiscal y obligaciones registradas en el libro diario/mayor. */
+const TAX_PROFILE_KEY='comerciante-tcp-tax-profile';
+let taxProfile=(()=>{try{return JSON.parse(localStorage.getItem(TAX_PROFILE_KEY)||'{}')||{};}catch{return {};}})();
+let lastTaxEstimate=null;
+function renderTaxModule(){
+ $('taxActivity').value=taxProfile.activity||'';
+ $('taxMonthlyAdvance').value=taxProfile.monthlyAdvance??0;
+ $('taxPeriod').value ||= today().slice(0,7);
+ $('taxObligationDate').value ||= today();
+ const year=today().slice(0,4);
+ const yearSales=book.sales.filter(x=>String(x.date||'').startsWith(year)).reduce((n,x)=>n+Number(x.total||0),0)/100;
+ const yearCogs=book.sales.filter(x=>String(x.date||'').startsWith(year)).reduce((n,x)=>n+Number(x.cogs||0),0)/100;
+ const yearExpenses=book.expenses.filter(x=>String(x.date||'').startsWith(year)).reduce((n,x)=>n+Number(x.value||0),0)/100;
+ if(!$('taxGross').value)$('taxGross').value=yearSales.toFixed(2);
+ if(!$('taxExpenses').value)$('taxExpenses').value=(yearCogs+yearExpenses).toFixed(2);
+ renderTaxObligations();
+}
+$('saveTaxProfile').onclick=()=>{taxProfile={activity:$('taxActivity').value.trim(),monthlyAdvance:Number($('taxMonthlyAdvance').value||0)};if(!Number.isFinite(taxProfile.monthlyAdvance)||taxProfile.monthlyAdvance<0)return alert('Cuota mensual no válida.');localStorage.setItem(TAX_PROFILE_KEY,JSON.stringify(taxProfile));alert('Perfil tributario guardado.');};
+$('taxAnnualForm').onsubmit=e=>{e.preventDefault();try{
+ lastTaxEstimate=calculateTcpAnnualTax({grossIncome:Number($('taxGross').value),businessExpenses:Number($('taxExpenses').value),documentedExpenses:Number($('taxDocumented').value),otherDeductions:Number($('taxOtherDeductions').value),advances:Number($('taxAdvances').value),withholdings:Number($('taxWithholdings').value),earlyPayment:$('taxEarlyBonus').checked});
+ const r=lastTaxEstimate,el=$('taxAnnualResult');el.hidden=false;
+ el.innerHTML='<h3>Resultado orientativo · CUP</h3><div class="reportgrid">'+[['Ingresos brutos',r.grossIncome],['Mínimo exento',r.minimumExempt],['Gastos deducibles',r.deductibleExpenses],['Otras deducciones',r.otherDeductions],['Base imponible',r.taxableBase],['Impuesto antes de bonificación',r.taxBeforeBonus],['Bonificación',r.bonus],['Cuotas y retenciones',r.credits],['Saldo estimado',r.balance],['Crédito a favor',r.excessCredits]].map(([k,v])=>'<article class="metric"><small>'+k+'</small><strong>'+money(v)+'</strong></article>').join('')+'</div><p class="muted">Gastos justificados: '+(r.evidenceRatio*100).toFixed(1)+'% · Escala progresiva aplicada por tramos.</p>'+(r.warning?'<p class="form-error">'+esc(r.warning)+'</p>':'')+'<p class="muted">No es una declaración oficial. Verifica límites de gastos, ingresos no incluidos y anticipos con tu ONAT.</p><button type="button" id="taxPostAnnual">Registrar saldo estimado como obligación</button>';
+ $('taxPostAnnual').onclick=()=>{if(r.balance<=0)return alert('No existe saldo estimado pendiente para registrar.');if(!confirm('¿Registrar '+money(r.balance)+' CUP como obligación estimada de IRP? Verifica antes que el cálculo coincida con tu liquidación.'))return;try{const doc=registerTaxObligation(book,{date:today(),code:'IRP-ANUAL',description:'Impuesto sobre Ingresos Personales TCP · estimación anual',period:today().slice(0,4),value:r.balance});saveBook();renderTaxObligations();alert('Obligación registrada: '+doc);}catch(err){alert(err.message);}};
+ }catch(err){alert(err.message);}};
+function renderTaxObligations(){const rows=book.taxObligations||[];$('taxObligationList').innerHTML=rows.length?'<h3>Libro de obligaciones</h3><div class="tablewrap"><table><thead><tr><th>Fecha / período</th><th>Concepto</th><th>Determinado</th><th>Pagado</th><th>Pendiente</th><th>Acción</th></tr></thead><tbody>'+rows.slice().reverse().map(x=>'<tr><td>'+esc(x.date)+'<br>'+esc(x.period)+'</td><td>'+esc(x.description)+'<br><small>'+esc(x.id)+'</small></td><td>'+money(x.value/100)+'</td><td>'+money(x.paid/100)+'</td><td>'+money(x.balance/100)+'</td><td>'+(x.balance>0?'<button type="button" data-taxpay="'+esc(x.id)+'">Registrar pago</button>':'Pagado')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="muted">Todavía no hay obligaciones tributarias registradas.</p>';
+ document.querySelectorAll('[data-taxpay]').forEach(b=>b.onclick=()=>{const ob=rows.find(x=>x.id===b.dataset.taxpay);if(!ob)return;const amountValue=prompt('Saldo pendiente: '+money(ob.balance/100)+' CUP. Importe del pago:');if(amountValue===null)return;const value=Number(amountValue);const method=prompt('Forma de pago: escribe Efectivo, Transferencia o Tarjeta','Transferencia')||'Transferencia';try{const doc=payTaxObligation(book,{date:today(),obligationId:ob.id,value,method});saveBook();renderTaxObligations();alert('Pago registrado en contabilidad: '+doc);}catch(err){alert(err.message);}});
+}
+$('taxObligationForm').onsubmit=e=>{e.preventDefault();try{const doc=registerTaxObligation(book,{date:$('taxObligationDate').value,code:$('taxCode').value,description:$('taxDescription').value||$('taxCode').selectedOptions[0].textContent,period:$('taxPeriod').value,value:Number($('taxObligationValue').value)});saveBook();e.target.reset();$('taxObligationDate').value=today();$('taxPeriod').value=today().slice(0,7);renderTaxObligations();alert('Obligación incorporada al libro diario y mayor: '+doc);}catch(err){alert(err.message);}};
 
 if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
 load().catch(e=>alert('No se pudo abrir el almacenamiento local: '+e.message));
