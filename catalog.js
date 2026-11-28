@@ -79,6 +79,17 @@ export function expiryStatus(product, today = new Date().toISOString().slice(0,1
   return { lots, tracked, availableTracked, untracked: Math.max(0, Number(product.stock || 0) - tracked), alerts: lots.filter(l=>l.status!=='VIGENTE') };
 }
 
+export function assertPerishableSaleAllowed(product, quantity, today = new Date().toISOString().slice(0,10)) {
+  if (!product?.perishable) return true;
+  const status = expiryStatus(product, today);
+  // If batches are registered, a sale may consume only dated, non-expired stock.
+  // Untracked stock is not allowed to bypass an expired/insufficient batch balance.
+  if (status.tracked > 0 && status.availableTracked + 1e-8 < Number(quantity)) {
+    throw new Error('No hay lotes vigentes suficientes para ' + product.name + '. Se bloqueó la venta para proteger el control de vencimientos.');
+  }
+  return true;
+}
+
 export function consumeExpiryLots(product, quantity, today = new Date().toISOString().slice(0,10)) {
   let remaining = Number(quantity);
   const status = expiryStatus(product, today);
