@@ -2,7 +2,7 @@ name: COMERCIANTE - pruebas y APK Android
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'fix/**']
     paths:
       - '**'
       - '!**/*.md'
