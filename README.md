@@ -50,3 +50,14 @@ El flujo `COMERCIANTE - construir Windows` genera dos entregables para Windows: 
 En Copias de seguridad, «Compartir respaldo por correo» prepara el archivo JSON completo. En dispositivos que admiten compartir archivos, permite elegir una aplicación de correo y adjuntar el respaldo directamente. Si el navegador no admite adjuntos compartidos, descarga el archivo y abre un borrador de correo para adjuntarlo manualmente. COMERCIANTE no almacena contraseñas ni envía datos sin intervención del usuario. La restauración sigue siendo manual y reemplaza los datos locales tras confirmación.
 
 La sincronización continua entre Android y Windows (Wi-Fi/Bluetooth) aún requiere un motor de sincronización con identificadores únicos, registro de cambios y resolución de conflictos; no se considera implementada por esta función de correo.
+
+## Preparación de sincronización segura
+
+Se incorpora `sync-core.js` como núcleo independiente para preparar el intercambio entre dispositivos:
+- Paquetes versionados e identificadores por dispositivo.
+- Validación de estructura y rechazo de registros duplicados o fechas inválidas.
+- Fusión por fecha de modificación; una revisión más reciente prevalece.
+- Si dos dispositivos modifican el mismo registro a la misma hora, se conserva la versión local y se informa el conflicto para revisión.
+- Las eliminaciones se representan como marcas explícitas (tombstones), para que no reaparezcan al sincronizar.
+
+**Importante:** este núcleo es la base de seguridad, no una sincronización Wi-Fi ya operativa. Aún falta conectarlo al almacenamiento real de ventas, compras, gastos e inventario, añadir el servicio de emparejamiento local y probar intercambios reales entre Android y Windows. Hasta entonces, usa las copias manuales y conserva ambos dispositivos respaldados.
