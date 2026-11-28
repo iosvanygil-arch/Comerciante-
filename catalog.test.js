@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createProduct, upsertProduct, findProductByScan, nextInternalSku, validateImageFile } from '../src/catalog.js';
+import { createProduct, upsertProduct, findProductByScan, nextInternalSku, validateImageFile } from './catalog.js';
 
 test('alta de artículo con foto opcional y edición conserva el identificador', () => {
   let items = upsertProduct([], { id:'p1', name:'Arrocera EKO', sku:'ESH-000001', cost:20, price:30, stock:4 });
