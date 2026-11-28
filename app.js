@@ -1,7 +1,7 @@
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
 import { calculateCostSheet, createCostSheet } from './cost-sheet.js';
-import { createProduct, upsertProduct, findProductByScan, nextInternalSku, validateImageFile, startCameraScanner, expiryStatus, consumeExpiryLots } from './catalog.js';
+import { createProduct, upsertProduct, findProductByScan, nextInternalSku, validateImageFile, startCameraScanner, expiryStatus, consumeExpiryLots, assertPerishableSaleAllowed } from './catalog.js';
 import { createBook, addProduct, updateProductMaster, sale, saleCart, purchase, expense, dailyIPV, saveDailyClosing, trialBalance } from './accounting.js';
 import { listProductsLocal, saveProductLocal, deleteProductLocal } from './local-store.js';
 import { validateBackupPayload } from './backup-core.js';
@@ -64,7 +64,7 @@ $('completeSale').onclick=async()=>{
   if(method==='Crédito'&&tender!==0)throw new Error('Para ventas a crédito, el importe recibido debe ser cero.');
   if(method!=='Efectivo'&&tender>total+0.000001)throw new Error('El importe recibido no puede superar el total en cobros que no sean efectivo.');
   const applied=method==='Crédito'?0:Math.min(tender,total);
-  for(const line of cart){const p=products.find(x=>x.sku===line.sku);if(!p||line.qty>Number(p.stock))throw new Error('Stock insuficiente para '+(p?.name||line.sku));if(p.perishable){const exp=expiryStatus(p,today());if(exp.tracked&&line.qty>exp.availableTracked+exp.untracked+1e-8)throw new Error('No hay unidades vigentes suficientes de '+p.name+'. Revisa los vencimientos.');}}
+  for(const line of cart){const p=products.find(x=>x.sku===line.sku);if(!p||line.qty>Number(p.stock))throw new Error('Stock insuficiente para '+(p?.name||line.sku));if(p.perishable)assertPerishableSaleAllowed(p,line.qty,today());}
   const customer=$('posCustomer').value.trim(),warranty=$('posWarranty').value.trim();
   const invoice=saleCart(book,{date,lines:cart.map(x=>({sku:x.sku,qty:x.qty,unitPrice:x.price})),received:tender,method,customer,warranty});
   for(const line of cart){const p=products.find(x=>x.sku===line.sku);if(p.perishable&&p.expiryLots?.length)consumeExpiryLots(p,line.qty,today());p.stock=book.products[line.sku].qty;await saveProductLocal(p);}
