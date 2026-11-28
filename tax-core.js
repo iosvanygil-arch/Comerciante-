@@ -62,3 +62,33 @@ export function calculateTcpAnnualTax(input = {}) {
     warning: expenseDeductionAllowed ? '' : 'No se aplicó deducción de gastos: la documentación aportada no alcanza el 80% exigido. Verifica además los límites específicos de tu actividad.'
   };
 }
+
+export const TCP_MONTHLY_RULES = Object.freeze({
+  salesServicesRate: 0.10,
+  incomeAdvanceRate: 0.05,
+  monthlyMinimumExempt: 3260,
+  electronicPaymentBonus: 0.03,
+  legalSource: 'Resolución 271/2024 MFP, G.O. Ordinaria No. 78 de 19/08/2024, arts. 7, 19 y 20'
+});
+export function calculateTcpMonthlyTaxes(input = {}) {
+  const grossIncome = nonNegative(input.grossIncome ?? 0, 'Ingresos mensuales');
+  const exemptCommissionIncome = nonNegative(input.exemptCommissionIncome ?? 0, 'Comisiones exentas');
+  if (exemptCommissionIncome > grossIncome) throw new Error('Las comisiones exentas no pueden superar los ingresos mensuales.');
+  const taxableSalesServicesIncome = grossIncome - exemptCommissionIncome;
+  const salesServicesTax = taxableSalesServicesIncome * TCP_MONTHLY_RULES.salesServicesRate;
+  const incomeTaxAdvance = Math.max(0, grossIncome - TCP_MONTHLY_RULES.monthlyMinimumExempt) * TCP_MONTHLY_RULES.incomeAdvanceRate;
+  const electronic = Boolean(input.electronicPayment);
+  const bonusRate = electronic ? TCP_MONTHLY_RULES.electronicPaymentBonus : 0;
+  const salesServicesBonus = salesServicesTax * bonusRate;
+  const incomeAdvanceBonus = incomeTaxAdvance * bonusRate;
+  return {
+    grossIncome, exemptCommissionIncome, taxableSalesServicesIncome,
+    salesServicesTax, incomeTaxAdvance, salesServicesBonus, incomeAdvanceBonus,
+    salesServicesAfterBonus: salesServicesTax - salesServicesBonus,
+    incomeAdvanceAfterBonus: incomeTaxAdvance - incomeAdvanceBonus,
+    totalBeforeBonus: salesServicesTax + incomeTaxAdvance,
+    totalBonus: salesServicesBonus + incomeAdvanceBonus,
+    totalAfterBonus: salesServicesTax + incomeTaxAdvance - salesServicesBonus - incomeAdvanceBonus,
+    electronicPayment: electronic
+  };
+}
