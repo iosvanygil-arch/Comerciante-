@@ -7,7 +7,11 @@ Aplicación de gestión comercial y contable local, independiente de Floot.
 - Ventas, compras, gastos, inventario y caja.
 - IPV diario, balance de comprobación y cierres.
 - Copias locales exportables e importables.
-- Uso web sin conexión después de la primera carga.
+- Facturas y comprobantes imprimibles con condiciones de garantía.
+- Control de perecederos por lote y alertas de vencimiento.
+- Fichas de costo independientes.
+- Respaldo completo exportable, restaurable y compartible por correo.
+- Uso local sin conexión en las versiones instaladas.
 
 ## Desarrollo y pruebas
 Requiere Node.js 20 o superior.
@@ -26,8 +30,12 @@ Abre la pestaña **Actions**, selecciona **COMERCIANTE - pruebas y APK Android**
 ## Windows
 El flujo `COMERCIANTE - construir Windows` genera dos entregables para Windows: instalador NSIS y ejecutable portable. Se construyen en GitHub Actions con Electron; descarga ambos desde **Actions → ejecución → Artifacts**. La primera compilación debe validarse antes de distribuirla. `INICIAR_WINDOWS.bat` permanece como opción de desarrollo con Node.js.
 
-## Pendiente de validación
-La compilación automatizada debe terminar correctamente antes de considerar entregable el APK. Impresión, facturas con garantías, alertas de vencimiento, permisos multiusuario, sincronización entre dispositivos y pruebas físicas siguen pendientes de implementación o validación.
+## Pendiente de validación y siguientes etapas
+- Instalar y probar físicamente APK, cámara, lector, impresión y almacenamiento en Android.
+- Instalar y probar los dos ejecutables Windows en un equipo real.
+- Integrar la imagen de portada/logotipo definitivo en los iconos Android y Windows.
+- Diseñar e implementar sincronización local por Wi-Fi entre equipos, con registro de cambios y resolución de conflictos. El correo electrónico es respaldo manual, no sincronización automática.
+- Los perfiles multiusuario y permisos granulares todavía no están implementados.
 
 
 ## Ficha de costo independiente
