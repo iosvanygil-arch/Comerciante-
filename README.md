@@ -28,3 +28,10 @@ Abre la pestaña **Actions**, selecciona **COMERCIANTE - pruebas y APK Android**
 
 ## Pendiente de validación
 La compilación automatizada debe terminar correctamente antes de considerar entregable el APK. Impresión, facturas con garantías, alertas de vencimiento, permisos multiusuario, sincronización entre dispositivos y pruebas físicas siguen pendientes de implementación o validación.
+
+
+## Ficha de costo independiente
+- Calcula costo total por lote y costo unitario con transporte, manipulación, envases y otros costos.
+- Sugiere precio de venta a partir del margen deseado sobre el precio.
+- Guarda fichas separadas del libro contable y del inventario.
+- Incluye las fichas en las copias de seguridad y su restauración.
