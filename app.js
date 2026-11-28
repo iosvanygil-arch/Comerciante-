@@ -118,7 +118,7 @@ function renderTaxModule(){
  const yearCogs=book.sales.filter(x=>String(x.date||'').startsWith(year)).reduce((n,x)=>n+Number(x.cogs||0),0)/100;
  const yearExpenses=book.expenses.filter(x=>String(x.date||'').startsWith(year)).reduce((n,x)=>n+Number(x.value||0),0)/100;
  if(!$('taxGross').value)$('taxGross').value=yearSales.toFixed(2);
- if(!$('taxExpenses').value)$('taxExpenses').value=(yearCogs+yearExpenses).toFixed(2);
+ if(!$('taxExpenses').value)$('taxExpenses').value=(yearCogs+yearExpenses).toFixed(2);\n $('taxAdvances').value=((book.taxPayments||[]).filter(x=>x.code==='IRP-ANTICIPO'&&String(x.date||'').startsWith(year)).reduce((n,x)=>n+Number(x.value||0),0)/100).toFixed(2);
  renderTaxObligations();
 }
 $('createMonthlyTax').onclick=()=>{const value=Number($('taxMonthlyAdvance').value||0);if(!Number.isFinite(value)||value<=0)return alert('Introduce la cuota mensual oficial comunicada por ONAT.');try{const doc=registerTaxObligation(book,{date:today(),code:'IRP-ANTICIPO',description:'Cuota mensual anticipada de IRP · TCP',period:today().slice(0,7),value});saveBook();renderTaxObligations();alert('Cuota anticipada registrada: '+doc);}catch(err){alert(err.message);}};
