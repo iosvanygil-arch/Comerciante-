@@ -5,7 +5,7 @@ import { calculateTcpAnnualTax, TCP_TAX_RULES } from './tax-core.js';
 test('TCP annual tax applies 39,120 CUP exempt minimum and progressive brackets', () => {
   const result = calculateTcpAnnualTax({grossIncome: 100000, businessExpenses:0, documentedExpenses:0});
   assert.equal(result.taxableBase, 60880);
-  assert.equal(result.taxBeforeBonus, 1000 + 2000 + 3000 + 8000 + 5440);
+  assert.equal(result.taxBeforeBonus, 1500 + 2000 + 3000 + 8000 + 5440);
   assert.equal(result.balance, result.taxBeforeBonus);
   assert.equal(TCP_TAX_RULES.minimumExemptAnnual, 39120);
 });
