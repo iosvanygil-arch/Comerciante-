@@ -10,7 +10,7 @@ import { registerTaxObligation, payTaxObligation } from './accounting.js';
 
 const $ = id => document.getElementById(id);
 const today = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-let products = [], currentImage = null, stopScan = null;
+let products = [], currentImage = null, stopScan = null, scannerTarget = 'inventory';
 let book = JSON.parse(localStorage.getItem('comerciante-book') || 'null') || createBook({date:today()});
 const saveBook = () => localStorage.setItem('comerciante-book', JSON.stringify(book));
 const money = n => new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n||0));
@@ -37,8 +37,22 @@ $('expenseForm').onsubmit=e=>{e.preventDefault();try{const doc=expense(book,{dat
 let cart=[];
 function renderSales(){
  $('saleDate').value=today(); $('posSearch').value=''; $('posCustomer').value=''; $('posWarranty').value='';
- cart=[]; renderCart(); renderRecent(); $('posSearch').focus();
+ cart=[]; renderCart(); renderRecent(); renderPosCatalog(); $('posSearch').focus();
 }
+function renderPosCatalog(){
+ const grid=$('posCatalog'),filter=$('posCategoryFilter');
+ if(!grid||!filter)return;
+ const previous=filter.value;
+ const categories=[...new Set(products.map(p=>String(p.category||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+ filter.innerHTML='<option value="">Todas las categorías</option>'+categories.map(c=>'<option value="'+esc(c)+'">'+esc(c)+'</option>').join('');
+ if(categories.includes(previous))filter.value=previous;
+ const category=filter.value;
+ const q=($('posSearch').value||'').trim().toLowerCase();
+ const visible=products.filter(p=>(!category||String(p.category||'').trim()===category)&&(!q||[p.name,p.sku,p.barcode,p.qrValue].some(v=>String(v||'').toLowerCase().includes(q))));
+ grid.innerHTML=visible.length?visible.map(p=>'<button type="button" class="pos-product" data-pos-product="'+esc(p.id)+'" '+(Number(p.stock)<=0?'disabled':'')+'><span class="pos-product-photo">'+(p.image?'<img loading="lazy" src="'+p.image+'" alt="">':'<span class="pos-placeholder">▦</span>')+'</span><span class="pos-product-name">'+esc(p.name)+'</span><strong>'+money(p.price)+'</strong><small>Existencia: '+money(p.stock)+'</small></button>').join(''):'<p class="muted">No hay productos disponibles con ese filtro. Registra artículos y añade fotografías en Inventario.</p>';
+ grid.querySelectorAll('[data-pos-product]').forEach(b=>b.onclick=()=>addToCart(products.find(p=>p.id===b.dataset.posProduct)));
+}
+$('posCategoryFilter').onchange=renderPosCatalog;
 function addToCart(p){
  if(!p) return;
  const line=cart.find(x=>x.sku===p.sku);
@@ -88,8 +102,8 @@ function downloadBackup(file){const url=URL.createObjectURL(file),a=document.cre
 $('exportBackup').onclick=()=>downloadBackup(createBackupFile());
 $('emailBackup').onclick=async()=>{const file=createBackupFile();try{if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Respaldo COMERCIANTE',text:'Copia de seguridad de la base de datos COMERCIANTE. Guárdala en un lugar seguro.'});return;}downloadBackup(file);const subject=encodeURIComponent('Respaldo COMERCIANTE '+today()),body=encodeURIComponent('Adjunta a este correo el archivo COMERCIANTE-respaldo descargado. Conserva este respaldo en un lugar seguro.');window.location.href=`mailto:?subject=${subject}&body=${body}`;alert('Se descargó el respaldo. Adjunta el archivo descargado al correo que se abrió.');}catch(err){if(err.name!=='AbortError')alert('No se pudo compartir automáticamente. Usa «Descargar copia completa» y adjunta el archivo a un correo.');}};
 $('importBackup').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());validateBackupPayload(data);if(!confirm('El respaldo pasó las comprobaciones básicas. Esto reemplazará el catálogo y los movimientos actuales. ¿Continuar?'))return;await replaceProductsLocal(data.products);products=data.products;book=data.book;saveBook();costSheets=Array.isArray(data.costSheets)?data.costSheets:[];localStorage.setItem(COST_SHEET_KEY,JSON.stringify(costSheets));renderCostSheetHistory();renderDashboard();alert('Copia restaurada correctamente.');}catch(err){alert('No se pudo restaurar: '+err.message)}e.target.value='';};
-async function openScanner(){ $('scanner').hidden=false;$('scanStatus').textContent='Solicitando cámara…';try{stopScan=await startCameraScanner($('camera'),(value,format)=>{ $('scanStatus').textContent=`Código leído: ${value} (${format})`;const p=findProductByScan(products,value);if(p){$('scanner').hidden=true;stopScan?.();editProduct(p.id);}else $('manualCode').value=value;},err=>{$('scanStatus').textContent=err.message;});$('scanStatus').textContent='Cámara activa. Enfoca el código.';}catch(e){$('scanStatus').textContent=e.message;}}
-$('scanOpen').onclick=openScanner;$('scanForm').onclick=openScanner;$('closeScanner').onclick=()=>{$('scanner').hidden=true;stopScan?.();};$('manualSearch').onclick=()=>{const p=findProductByScan(products,$('manualCode').value);if(p){$('scanner').hidden=true;stopScan?.();editProduct(p.id);}else $('scanStatus').textContent='No se encontró ese código en el catálogo.';};
+async function openScanner(target='inventory'){scannerTarget=target;$('scanner').hidden=false;$('manualCode').value='';$('scanStatus').textContent='Solicitando cámara…';try{stopScan=await startCameraScanner($('camera'),(value,format)=>{ $('scanStatus').textContent=`Código leído: ${value} (${format})`;const p=findProductByScan(products,value);if(p){$('scanner').hidden=true;stopScan?.();if(scannerTarget==='sales'){view('sales');addToCart(p);}else editProduct(p.id);}else {$('manualCode').value=value;$('scanStatus').textContent='Código leído, pero no está registrado. Puedes buscarlo manualmente o crear el artículo.';}},err=>{$('scanStatus').textContent=err.message;});$('scanStatus').textContent='Cámara activa. Enfoca el código.';}catch(e){$('scanStatus').textContent=e.message;}}
+$('scanOpen').onclick=()=>openScanner('inventory');$('scanForm').onclick=()=>openScanner('inventory');$('scanSale').onclick=()=>openScanner('sales');$('closeScanner').onclick=()=>{$('scanner').hidden=true;stopScan?.();stopScan=null;};$('manualSearch').onclick=()=>{const p=findProductByScan(products,$('manualCode').value);if(p){$('scanner').hidden=true;stopScan?.();stopScan=null;if(scannerTarget==='sales'){view('sales');addToCart(p);}else editProduct(p.id);}else $('scanStatus').textContent='No se encontró ese código en el catálogo.';};
 
 /* Fichas de costo: almacenamiento separado, sin tocar el libro contable. */
 const COST_SHEET_KEY='comerciante-cost-sheets';
