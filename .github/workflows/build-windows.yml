@@ -8,6 +8,8 @@ on:
       - 'electron.cjs'
       - 'app.js'
       - 'accounting.js'
+      - 'tax-core.js'
+      - 'tax-core.test.js'
       - 'catalog.js'
       - 'local-store.js'
       - 'index.html'
