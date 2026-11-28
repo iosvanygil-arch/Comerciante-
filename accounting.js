@@ -219,3 +219,35 @@ export function saleCart(book, { date, lines, received = 0, method = 'Efectivo',
   Object.assign(book, working);
   return invoice;
 }
+
+
+// Obligaciones tributarias del TCP: asientos auditables en el libro diario y mayor.
+export function registerTaxObligation(book, { date, code, description, period, value }) {
+  const v = cents(value);
+  if (v <= 0) throw new Error('La obligación tributaria debe ser mayor que cero.');
+  const doc = id(book, 'ONAT');
+  entry(book, date, doc, [
+    { account: 'Gasto tributario: ' + String(description || code), debit: v, credit: 0 },
+    { account: 'Tributos por pagar: ' + String(code), debit: 0, credit: v }
+  ]);
+  book.taxObligations ??= [];
+  book.taxObligations.push({ id: doc, date, code: String(code), description: String(description || code), period: String(period || ''), value: v, paid: 0, balance: v });
+  return doc;
+}
+export function payTaxObligation(book, { date, obligationId, value, method = 'Efectivo' }) {
+  const obligation = (book.taxObligations || []).find(x => x.id === obligationId);
+  if (!obligation) throw new Error('No se encontró la obligación tributaria.');
+  const v = cents(value);
+  if (v <= 0 || v > obligation.balance) throw new Error('El pago debe ser mayor que cero y no superar el saldo pendiente.');
+  const doc = id(book, 'PAGO-ONAT');
+  entry(book, date, doc, [
+    { account: 'Tributos por pagar: ' + obligation.code, debit: v, credit: 0 },
+    { account: moneyAccount(method), debit: 0, credit: v }
+  ]);
+  obligation.paid += v;
+  obligation.balance -= v;
+  book.taxPayments ??= [];
+  book.taxPayments.push({ id: doc, date, obligationId, code: obligation.code, value: v, method });
+  cashMove(book, date, doc, 'out', v, method);
+  return doc;
+}
