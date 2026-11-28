@@ -83,7 +83,7 @@ export function expiryStatus(product, today = new Date().toISOString().slice(0,1
 export function consumeExpiryLots(product, quantity, today = new Date().toISOString().slice(0,10)) {
   let remaining = Number(quantity);
   const status = expiryStatus(product, today);
-  if (status.tracked && status.availableTracked + status.untracked + 1e-8 < remaining) throw new Error('No hay existencias vigentes suficientes para ' + product.name);
+  if (status.availableTracked + 1e-8 < remaining) throw new Error('No hay lotes vigentes suficientes para ' + product.name + '. Registra lote y vencimiento antes de vender.');
   const next = (product.expiryLots || []).map(l => ({ ...l }));
   for (const lot of next.sort((a,b)=>a.expiry.localeCompare(b.expiry))) {
     if (remaining <= 1e-8) break;
