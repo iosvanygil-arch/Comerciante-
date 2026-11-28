@@ -1,4 +1,5 @@
 // Catálogo de productos local-first. La imagen se conserva como Blob/DataURL en la base local.
+import { BrowserMultiFormatReader } from '@zxing/browser';
 const clean = (v) => String(v ?? '').trim();
 
 export function createProduct({ id, name, sku = '', barcode = '', qrValue = '', image = null, description = '', category = '', unit = 'unidad', cost = 0, price = 0, stock = 0, minStock = 0, perishable = false, expiryLots = [] }) {
@@ -44,28 +45,36 @@ export function validateImageFile(file) {
   return true;
 }
 
-// Escaneo desde cámara: requiere permiso del usuario y navegador compatible con BarcodeDetector.
+// Escaneo multiplataforma con ZXing: evita depender de BarcodeDetector,
+// que falta en numerosos Android WebView. La cámara solo se activa tras acción del usuario.
 export async function startCameraScanner(video, onCode, onError = () => {}) {
-  if (!navigator.mediaDevices?.getUserMedia) throw new Error('La cámara no está disponible en este dispositivo/navegador');
-  if (!('BarcodeDetector' in globalThis)) throw new Error('Este navegador no ofrece lector nativo. Puedes usar un lector USB/Bluetooth o introducir el código manualmente.');
-  const supported = await BarcodeDetector.getSupportedFormats();
-  const wanted = ['qr_code', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'codabar'];
-  const detector = new BarcodeDetector({ formats: wanted.filter(x => supported.includes(x)) });
-  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
-  video.srcObject = stream;
-  await video.play();
-  let stopped = false;
-  const scan = async () => {
-    if (stopped) return;
-    try {
-      const hits = await detector.detect(video);
-      if (hits.length) { onCode(hits[0].rawValue, hits[0].format); stop(); return; }
-    } catch (e) { onError(e); }
-    if (!stopped) requestAnimationFrame(scan);
-  };
-  const stop = () => { stopped = true; stream.getTracks().forEach(t => t.stop()); video.srcObject = null; };
-  requestAnimationFrame(scan);
-  return stop;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('La cámara no está disponible. Comprueba los permisos de cámara de Android.');
+  }
+  const reader = new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts: 250 });
+  try {
+    const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+    const preferred = devices.find(device => /back|rear|environment|trasera|posterior/i.test(device.label));
+    const deviceId = preferred?.deviceId || devices[devices.length - 1]?.deviceId;
+    if (!deviceId) throw new Error('No se encontró una cámara disponible.');
+    const controls = await reader.decodeFromVideoDevice(deviceId, video, (result, error) => {
+      if (result) {
+        onCode(result.getText(), result.getBarcodeFormat());
+        controls?.stop();
+      } else if (error && error.name !== 'NotFoundException' && error.name !== 'ChecksumException' && error.name !== 'FormatException') {
+        onError(error);
+      }
+    });
+    return () => { try { controls.stop(); } catch {} };
+  } catch (error) {
+    reader.reset();
+    const message = error?.name === 'NotAllowedError'
+      ? 'Permiso de cámara denegado. Activa Cámara en Ajustes de Android > Aplicaciones > COMERCIANTE > Permisos.'
+      : error?.name === 'NotFoundException'
+        ? 'No se encontró una cámara disponible.'
+        : (error?.message || 'No se pudo iniciar el lector de cámara.');
+    throw new Error(message);
+  }
 }
 
 export function expiryStatus(product, today = new Date().toISOString().slice(0,10), warningDays = 30) {
