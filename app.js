@@ -96,5 +96,6 @@ Object.values(csFields).forEach(id=>$(id).addEventListener('input',renderCostShe
 $('costSheetForm').addEventListener('submit',e=>{e.preventDefault();try{const result=renderCostSheetCalculation();if(!result)return;const sheet=createCostSheet({name:$('csName').value,code:$('csCode').value,unit:$('csUnit').value,...costSheetInput()});costSheets.push(sheet);localStorage.setItem(COST_SHEET_KEY,JSON.stringify(costSheets));renderCostSheetHistory();alert('Ficha de costo guardada. No se modificó la contabilidad ni el inventario.');}catch(err){alert(err.message);}});
 $('costSheetForm').addEventListener('reset',()=>setTimeout(renderCostSheetCalculation,0));
 renderCostSheetCalculation();
-\nif('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
 load().catch(e=>alert('No se pudo abrir el almacenamiento local: '+e.message));
