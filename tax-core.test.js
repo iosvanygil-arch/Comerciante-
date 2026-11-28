@@ -26,3 +26,19 @@ test('early payment bonus is five percent of calculated annual tax', () => {
   const early = calculateTcpAnnualTax({grossIncome:50000,earlyPayment:true});
   assert.equal(early.bonus, regular.taxBeforeBonus*0.05);
 });
+
+import { calculateTcpMonthlyTaxes, calculateTcpSocialSecurity } from './tax-core.js';
+test('TCP monthly sales/services tax and income advance follow Resolution 271/2024', () => {
+  const r = calculateTcpMonthlyTaxes({grossIncome:10000,exemptCommissionIncome:2000});
+  assert.equal(r.salesServicesTax,800);
+  assert.equal(r.incomeTaxAdvance,337);
+});
+test('electronic payment bonus is 3 percent of both eligible monthly taxes', () => {
+  const r = calculateTcpMonthlyTaxes({grossIncome:10000,electronicPayment:true});
+  assert.equal(r.totalBonus,(1000+337)*0.03);
+});
+test('TCP special social security contribution is 20 percent of selected base', () => {
+  const r = calculateTcpSocialSecurity({selectedMonthlyBase:15000,months:3});
+  assert.equal(r.monthlyContribution,3000);
+  assert.equal(r.periodContribution,9000);
+});
