@@ -227,7 +227,7 @@ export function registerTaxObligation(book, { date, code, description, period, v
   if (v <= 0) throw new Error('La obligación tributaria debe ser mayor que cero.');
   const doc = id(book, 'ONAT');
   entry(book, date, doc, [
-    { account: 'Gasto tributario: ' + String(description || code), debit: v, credit: 0 },
+    { account: String(code) === 'IRP-ANTICIPO' ? 'Anticipos de Impuesto sobre Ingresos Personales' : 'Gasto tributario: ' + String(description || code), debit: v, credit: 0 },
     { account: 'Tributos por pagar: ' + String(code), debit: 0, credit: v }
   ]);
   book.taxObligations ??= [];
