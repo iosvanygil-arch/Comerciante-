@@ -1,1 +1,1 @@
-{"name":"COMERCIANTE","short_name":"Comerciante","start_url":"/","display":"standalone","background_color":"#f3f6fa","theme_color":"#102b50","description":"Gestión comercial y contable local."}
+{"name":"COMERCIANTE","short_name":"Comerciante","start_url":"./","scope":"./","display":"standalone","background_color":"#f3f6fa","theme_color":"#102b50","description":"Gestión comercial y contable local."}
