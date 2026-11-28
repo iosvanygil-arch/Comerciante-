@@ -4,3 +4,5 @@
 
 .checkline{display:flex;grid-template-columns:auto 1fr;align-items:center;gap:10px;background:#f5f8fc;padding:12px;border-radius:10px}.checkline input{width:20px;height:20px}
 .expiryrow{display:grid;grid-template-columns:1.3fr .8fr auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid #e3eaf2}.expiryrow small{display:block;color:#748397;font-size:12px;margin-top:3px}.expiry-ok{color:#26734a}.expiry-soon{color:#a36a00}.expiry-bad{color:#b3261e}@media(max-width:600px){.expiryrow{grid-template-columns:1fr 1fr}.expiryrow strong{grid-column:1/-1}}
+
+.invoice-row{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid #e3eaf2}.invoice-row small{display:block;color:#748397;font-size:12px;margin-top:3px}@media(max-width:600px){.invoice-row{grid-template-columns:1fr auto}.invoice-row button{grid-column:1/-1}}
