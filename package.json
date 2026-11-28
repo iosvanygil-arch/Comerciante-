@@ -40,8 +40,7 @@
       "target": [
         "nsis",
         "portable"
-      ],
-      "artifactName": "COMERCIANTE-${version}-${target}.${ext}"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -49,5 +48,6 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     }
-  }
+  },
+  "description": "Gestión comercial y contable local COMERCIANTE"
 }
