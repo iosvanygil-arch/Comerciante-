@@ -1,16 +1,17 @@
 // Catálogo de productos local-first. La imagen se conserva como Blob/DataURL en la base local.
 const clean = (v) => String(v ?? '').trim();
 
-export function createProduct({ id, name, sku = '', barcode = '', qrValue = '', image = null, description = '', category = '', unit = 'unidad', cost = 0, price = 0, stock = 0, minStock = 0 }) {
+export function createProduct({ id, name, sku = '', barcode = '', qrValue = '', image = null, description = '', category = '', unit = 'unidad', cost = 0, price = 0, stock = 0, minStock = 0, perishable = false, expiryLots = [] }) {
   const product = {
     id: clean(id) || globalThis.crypto?.randomUUID?.() || `prod-${Date.now()}`,
     name: clean(name), sku: clean(sku), barcode: clean(barcode), qrValue: clean(qrValue),
     image, description: clean(description), category: clean(category), unit: clean(unit) || 'unidad',
     cost: Number(cost), price: Number(price), stock: Number(stock), minStock: Number(minStock),
+    perishable: Boolean(perishable), expiryLots: Array.isArray(expiryLots) ? expiryLots.map(l => ({ batch: clean(l.batch), expiry: clean(l.expiry), qty: Number(l.qty) })).filter(l => l.expiry && Number.isFinite(l.qty) && l.qty > 0) : [],
     updatedAt: new Date().toISOString()
   };
   if (!product.name) throw new Error('El nombre del artículo es obligatorio');
-  if (![product.cost, product.price, product.stock, product.minStock].every(Number.isFinite)) throw new Error('Hay valores numéricos inválidos');
+  if (![product.cost, product.price, product.stock, product.minStock, ...product.expiryLots.map(l => l.qty)].every(Number.isFinite)) throw new Error('Hay valores numéricos inválidos');
   if (product.cost < 0 || product.price < 0 || product.stock < 0 || product.minStock < 0) throw new Error('Costo, precio y existencias no pueden ser negativos');
   if (product.image && !(product.image instanceof Blob) && typeof product.image !== 'string') throw new Error('La imagen debe ser un archivo o una referencia local');
   return product;
@@ -65,4 +66,31 @@ export async function startCameraScanner(video, onCode, onError = () => {}) {
   const stop = () => { stopped = true; stream.getTracks().forEach(t => t.stop()); video.srcObject = null; };
   requestAnimationFrame(scan);
   return stop;
+}
+
+
+export function expiryStatus(product, today = new Date().toISOString().slice(0,10), warningDays = 30) {
+  const day = 86400000, now = Date.parse(today + 'T00:00:00Z');
+  const lots = (product.expiryLots || []).filter(l => Number(l.qty) > 0).map(l => {
+    const delta = Math.ceil((Date.parse(l.expiry + 'T00:00:00Z') - now) / day);
+    return { ...l, daysLeft: delta, status: delta < 0 ? 'VENCIDO' : delta <= warningDays ? 'POR VENCER' : 'VIGENTE' };
+  }).sort((a,b) => a.expiry.localeCompare(b.expiry));
+  const tracked = lots.reduce((n,l)=>n+l.qty,0);
+  return { lots, tracked, untracked: Math.max(0, Number(product.stock || 0) - tracked), alerts: lots.filter(l=>l.status!=='VIGENTE') };
+}
+
+export function consumeExpiryLots(product, quantity, today = new Date().toISOString().slice(0,10)) {
+  let remaining = Number(quantity);
+  const status = expiryStatus(product, today);
+  if (status.tracked && status.tracked + 1e-8 < remaining) throw new Error('Lotes con fecha insuficientes para ' + product.name);
+  const next = (product.expiryLots || []).map(l => ({ ...l }));
+  for (const lot of next.sort((a,b)=>a.expiry.localeCompare(b.expiry))) {
+    if (remaining <= 1e-8) break;
+    if (lot.expiry < today || lot.qty <= 0) continue;
+    const take = Math.min(lot.qty, remaining);
+    lot.qty = Number((lot.qty - take).toFixed(4));
+    remaining = Number((remaining - take).toFixed(4));
+  }
+  product.expiryLots = next.filter(l=>l.qty>1e-8);
+  return product;
 }
