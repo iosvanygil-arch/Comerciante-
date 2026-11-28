@@ -10,7 +10,7 @@ import { registerTaxObligation, payTaxObligation } from './accounting.js';
 
 const $ = id => document.getElementById(id);
 const today = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-let products = [], currentImage = null, stopScan = null;
+let products = [], currentImage = null, stopScan = null, scannerTarget = 'inventory';
 let book = JSON.parse(localStorage.getItem('comerciante-book') || 'null') || createBook({date:today()});
 const saveBook = () => localStorage.setItem('comerciante-book', JSON.stringify(book));
 const money = n => new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n||0));
@@ -18,7 +18,7 @@ const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>
 function view(name){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.view===name));window.scrollTo(0,0);if(name==='products')renderProducts();if(name==='costSheets')renderCostSheetHistory();if(name==='perishables')renderPerishables();if(name==='invoices')renderInvoices();if(name==='sales')renderSales();if(name==='purchases')renderPurchases();if(name==='expenses')renderExpenses();if(name==='dashboard')renderDashboard();if(name==='tax')renderTaxModule();}
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>view(b.dataset.view)));
 document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>view(b.dataset.go)));
-async function load(){products=await listProductsLocal();for(const p of products){if(!book.products[p.sku])addProduct(book,{sku:p.sku,name:p.name,qty:p.stock,unitCost:p.cost,salePrice:p.price});else p.stock=book.products[p.sku].qty;await saveProductLocal(p);}saveBook();renderDashboard();}
+async function load(){products=await listProductsLocal();for(const p of products){if(!book.products[p.sku])addProduct(book,{sku:p.sku,name:p.name,qty:p.stock,unitCost:p.cost,salePrice:p.price});else p.stock=book.products[p.sku].qty;await saveProductLocal(p);}saveBook();renderDashboard();if($('sales')?.classList.contains('active'))renderPosCatalog();}
 function renderDashboard(){ $('statProducts').textContent=products.length;$('statStock').textContent=money(products.reduce((a,p)=>a+Number(p.stock||0),0));$('statSales').textContent=book.sales.length;const alerts=products.filter(p=>p.perishable).flatMap(p=>{const s=expiryStatus(p,today());return [...s.alerts.map(l=>({name:p.name,...l})),...(s.untracked>0?[{name:p.name,status:'SIN FECHA',qty:s.untracked}]:[])];});const expired=alerts.filter(x=>x.status==='VENCIDO').length,soon=alerts.filter(x=>x.status==='POR VENCER').length,untracked=alerts.filter(x=>x.status==='SIN FECHA').length;const box=$('expiryDashboard');if(box){box.hidden=!alerts.length;box.innerHTML=alerts.length?`<b>⚠ Control de vencimientos</b><p>${expired} vencido(s) · ${soon} próximo(s) a vencer · ${untracked} sin fecha</p><button type="button" id="openExpiry" class="primary">Revisar perecederos</button>`:'';const btn=$('openExpiry');if(btn)btn.onclick=()=>view('perishables');}}
 function renderProducts(){const q=$('searchProduct').value.trim().toLowerCase();const list=products.filter(p=>[p.name,p.sku,p.barcode,p.qrValue].some(v=>String(v||'').toLowerCase().includes(q)));$('productList').innerHTML=list.length?list.map(p=>`<article class="product"><div>${p.image?`<img src="${p.image}" alt="">`:'<div class="placeholder">▦</div>'}</div><div class="details"><b>${esc(p.name)}</b><small>${esc(p.sku||'Sin SKU')} · Stock: ${money(p.stock)}</small><small>${esc(p.barcode||'Sin código de barras')}</small></div><div class="amount">${money(p.price)}</div><button data-edit="${esc(p.id)}">Editar</button></article>`).join(''):'<div class="panel muted">No hay artículos todavía. Pulsa «Nuevo» para comenzar.</div>';document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editProduct(b.dataset.edit));}
 $('searchProduct').addEventListener('input',renderProducts);
@@ -37,8 +37,22 @@ $('expenseForm').onsubmit=e=>{e.preventDefault();try{const doc=expense(book,{dat
 let cart=[];
 function renderSales(){
  $('saleDate').value=today(); $('posSearch').value=''; $('posCustomer').value=''; $('posWarranty').value='';
- cart=[]; renderCart(); renderRecent(); $('posSearch').focus();
+ cart=[]; renderCart(); renderRecent(); renderPosCatalog(); $('posSearch').focus();
 }
+function renderPosCatalog(){
+ const grid=$('posCatalog'),filter=$('posCategoryFilter');
+ if(!grid||!filter)return;
+ const previous=filter.value;
+ const categories=[...new Set(products.map(p=>String(p.category||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+ filter.innerHTML='<option value="">Todas las categorías</option>'+categories.map(c=>'<option value="'+esc(c)+'">'+esc(c)+'</option>').join('');
+ if(categories.includes(previous))filter.value=previous;
+ const category=filter.value;
+ const q=($('posSearch').value||'').trim().toLowerCase();
+ const visible=products.filter(p=>(!category||String(p.category||'').trim()===category)&&(!q||[p.name,p.sku,p.barcode,p.qrValue].some(v=>String(v||'').toLowerCase().includes(q))));
+ grid.innerHTML=visible.length?visible.map(p=>'<button type="button" class="pos-product" data-pos-product="'+esc(p.id)+'" '+(Number(p.stock)<=0?'disabled':'')+'><span class="pos-product-photo">'+(p.image?'<img loading="lazy" src="'+p.image+'" alt="">':'<span class="pos-placeholder">▦</span>')+'</span><span class="pos-product-name">'+esc(p.name)+'</span><strong>'+money(p.price)+'</strong><small>Existencia: '+money(p.stock)+'</small></button>').join(''):'<p class="muted">No hay productos disponibles con ese filtro. Registra artículos y añade fotografías en Inventario.</p>';
+ grid.querySelectorAll('[data-pos-product]').forEach(b=>b.onclick=()=>addToCart(products.find(p=>p.id===b.dataset.posProduct)));
+}
+$('posCategoryFilter').onchange=renderPosCatalog;
 function addToCart(p){
  if(!p) return;
  const line=cart.find(x=>x.sku===p.sku);
@@ -53,7 +67,7 @@ function renderCart(){
  document.querySelectorAll('[data-cartqty]').forEach(el=>el.onchange=()=>{const i=Number(el.dataset.cartqty),q=Number(el.value),p=products.find(v=>v.sku===cart[i]?.sku);if(!p||!Number.isFinite(q)||q<=0||q>p.stock){alert('Cantidad inválida o superior al stock.');renderCart();return;}cart[i].qty=q;renderCart();});
  document.querySelectorAll('[data-remove]').forEach(el=>el.onclick=()=>{cart.splice(Number(el.dataset.remove),1);renderCart();});
 }
-$('posSearch').oninput=()=>{const q=$('posSearch').value.trim().toLowerCase();if(!q){$('posMatches').innerHTML='';return;}const matches=products.filter(p=>[p.name,p.sku,p.barcode,p.qrValue].some(v=>String(v||'').toLowerCase().includes(q))).slice(0,8);$('posMatches').innerHTML=matches.map(p=>`<button type="button" class="posmatch" data-addsku="${esc(p.sku)}"><span><b>${esc(p.name)}</b><small>${esc(p.sku)} · stock ${money(p.stock)}</small></span><strong>${money(p.price)}</strong></button>`).join('')||'<p class="muted">No se encontró el artículo.</p>';document.querySelectorAll('[data-addsku]').forEach(b=>b.onclick=()=>addToCart(products.find(p=>p.sku===b.dataset.addsku)));};
+$('posSearch').oninput=()=>{const q=$('posSearch').value.trim().toLowerCase();if(!q){$('posMatches').innerHTML='';renderPosCatalog();return;}const matches=products.filter(p=>[p.name,p.sku,p.barcode,p.qrValue].some(v=>String(v||'').toLowerCase().includes(q))).slice(0,8);$('posMatches').innerHTML=matches.map(p=>`<button type="button" class="posmatch" data-addsku="${esc(p.sku)}"><span><b>${esc(p.name)}</b><small>${esc(p.sku)} · stock ${money(p.stock)}</small></span><strong>${money(p.price)}</strong></button>`).join('')||'<p class="muted">No se encontró el artículo.</p>';document.querySelectorAll('[data-addsku]').forEach(b=>b.onclick=()=>addToCart(products.find(p=>p.sku===b.dataset.addsku)));renderPosCatalog();};
 $('posSearch').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const p=findProductByScan(products,$('posSearch').value.trim())||products.find(x=>x.name.toLowerCase()===$('posSearch').value.trim().toLowerCase());if(p)addToCart(p);}};
 $('posReceived').oninput=()=>{$('posChange').textContent=money(Math.max(0,Number($('posReceived').value||0)-cartSum()));};
 $('posMethod').onchange=()=>{if($('posMethod').value==='Crédito')$('posReceived').value='0';else $('posReceived').value=cartSum().toFixed(2);$('posChange').textContent=money(Math.max(0,Number($('posReceived').value||0)-cartSum()));};
@@ -70,7 +84,7 @@ $('completeSale').onclick=async()=>{
   const customer=$('posCustomer').value.trim(),warranty=$('posWarranty').value.trim();
   const invoice=saleCart(book,{date,lines:cart.map(x=>({sku:x.sku,qty:x.qty,unitPrice:x.price})),received:tender,method,customer,warranty});
   for(const line of cart){const p=products.find(x=>x.sku===line.sku);if(p.perishable&&p.expiryLots?.length)consumeExpiryLots(p,line.qty,today());p.stock=book.products[line.sku].qty;await saveProductLocal(p);}
-  saveBook();renderDashboard();
+  saveBook();renderDashboard();renderPosCatalog();
   const receiptId=invoice.id,change=invoice.change;
   $('receiptPrint').innerHTML=`<div class="receiptinner"><h2>COMERCIANTE</h2><p>COMPROBANTE DE VENTA</p><p>Fecha: ${esc(date)}<br>Factura: ${esc(receiptId)}<br>Cliente: ${esc(customer||'Consumidor final')}</p><hr>${cart.map(x=>{const p=products.find(v=>v.sku===x.sku);return `<p>${esc(p?.name||x.sku)}<br>${x.qty} × ${money(x.price)} = <b>${money(x.qty*x.price)}</b></p>`}).join('')}<hr><h3>TOTAL: ${money(total)}</h3><p>Forma de cobro: ${esc(method)}<br>Recibido: ${money(invoice.tender/100)}<br>Aplicado: ${money(invoice.received/100)}<br>${method==='Efectivo'?'Cambio: '+money(change/100):'Saldo pendiente: '+money(invoice.balance/100)}</p>${warranty?'<p>Garantía: '+esc(warranty)+'</p>':''}<p>Gracias por su compra.</p></div>`;
   cart=[];renderCart();renderRecent();$('posSearch').focus();
@@ -88,8 +102,8 @@ function downloadBackup(file){const url=URL.createObjectURL(file),a=document.cre
 $('exportBackup').onclick=()=>downloadBackup(createBackupFile());
 $('emailBackup').onclick=async()=>{const file=createBackupFile();try{if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Respaldo COMERCIANTE',text:'Copia de seguridad de la base de datos COMERCIANTE. Guárdala en un lugar seguro.'});return;}downloadBackup(file);const subject=encodeURIComponent('Respaldo COMERCIANTE '+today()),body=encodeURIComponent('Adjunta a este correo el archivo COMERCIANTE-respaldo descargado. Conserva este respaldo en un lugar seguro.');window.location.href=`mailto:?subject=${subject}&body=${body}`;alert('Se descargó el respaldo. Adjunta el archivo descargado al correo que se abrió.');}catch(err){if(err.name!=='AbortError')alert('No se pudo compartir automáticamente. Usa «Descargar copia completa» y adjunta el archivo a un correo.');}};
 $('importBackup').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());validateBackupPayload(data);if(!confirm('El respaldo pasó las comprobaciones básicas. Esto reemplazará el catálogo y los movimientos actuales. ¿Continuar?'))return;await replaceProductsLocal(data.products);products=data.products;book=data.book;saveBook();costSheets=Array.isArray(data.costSheets)?data.costSheets:[];localStorage.setItem(COST_SHEET_KEY,JSON.stringify(costSheets));renderCostSheetHistory();renderDashboard();alert('Copia restaurada correctamente.');}catch(err){alert('No se pudo restaurar: '+err.message)}e.target.value='';};
-async function openScanner(){ $('scanner').hidden=false;$('scanStatus').textContent='Solicitando cámara…';try{stopScan=await startCameraScanner($('camera'),(value,format)=>{ $('scanStatus').textContent=`Código leído: ${value} (${format})`;const p=findProductByScan(products,value);if(p){$('scanner').hidden=true;stopScan?.();editProduct(p.id);}else $('manualCode').value=value;},err=>{$('scanStatus').textContent=err.message;});$('scanStatus').textContent='Cámara activa. Enfoca el código.';}catch(e){$('scanStatus').textContent=e.message;}}
-$('scanOpen').onclick=openScanner;$('scanForm').onclick=openScanner;$('closeScanner').onclick=()=>{$('scanner').hidden=true;stopScan?.();};$('manualSearch').onclick=()=>{const p=findProductByScan(products,$('manualCode').value);if(p){$('scanner').hidden=true;stopScan?.();editProduct(p.id);}else $('scanStatus').textContent='No se encontró ese código en el catálogo.';};
+async function openScanner(target='inventory'){scannerTarget=target;$('scanner').hidden=false;$('manualCode').value='';$('scanStatus').textContent='Solicitando cámara…';try{stopScan=await startCameraScanner($('camera'),(value,format)=>{ $('scanStatus').textContent=`Código leído: ${value} (${format})`;const p=findProductByScan(products,value);if(p){$('scanner').hidden=true;stopScan?.();if(scannerTarget==='sales'){addToCart(p);}else editProduct(p.id);}else {$('manualCode').value=value;$('scanStatus').textContent='Código leído, pero no está registrado. Puedes buscarlo manualmente o crear el artículo.';}},err=>{$('scanStatus').textContent=err.message;});$('scanStatus').textContent='Cámara activa. Enfoca el código.';}catch(e){$('scanStatus').textContent=e.message;}}
+$('scanOpen').onclick=()=>openScanner('inventory');$('scanForm').onclick=()=>openScanner('inventory');$('scanSale').onclick=()=>openScanner('sales');$('closeScanner').onclick=()=>{$('scanner').hidden=true;stopScan?.();stopScan=null;};$('manualSearch').onclick=()=>{const p=findProductByScan(products,$('manualCode').value);if(p){$('scanner').hidden=true;stopScan?.();stopScan=null;if(scannerTarget==='sales'){view('sales');addToCart(p);}else editProduct(p.id);}else $('scanStatus').textContent='No se encontró ese código en el catálogo.';};
 
 /* Fichas de costo: almacenamiento separado, sin tocar el libro contable. */
 const COST_SHEET_KEY='comerciante-cost-sheets';

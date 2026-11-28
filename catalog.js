@@ -48,29 +48,35 @@ export function validateImageFile(file) {
 // Escaneo multiplataforma con ZXing: evita depender de BarcodeDetector,
 // que falta en numerosos Android WebView. La cámara solo se activa tras acción del usuario.
 export async function startCameraScanner(video, onCode, onError = () => {}) {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error('La cámara no está disponible. Comprueba los permisos de cámara de Android.');
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    throw new Error('La cámara requiere el APK actualizado con permiso CAMERA. Comprueba que la aplicación esté instalada desde una compilación reciente.');
   }
-  const reader = new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts: 250 });
+  const reader = new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts: 220 });
+  let controls = null;
   try {
-    const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-    const preferred = devices.find(device => /back|rear|environment|trasera|posterior/i.test(device.label));
-    const deviceId = preferred?.deviceId || devices[devices.length - 1]?.deviceId;
-    if (!deviceId) throw new Error('No se encontró una cámara disponible.');
-    const controls = await reader.decodeFromVideoDevice(deviceId, video, (result, error) => {
-      if (result) {
-        onCode(result.getText(), result.getBarcodeFormat());
-        controls?.stop();
-      } else if (error && error.name !== 'NotFoundException' && error.name !== 'ChecksumException' && error.name !== 'FormatException') {
-        onError(error);
+    video.setAttribute('playsinline', '');
+    video.muted = true;
+    video.autoplay = true;
+    controls = await reader.decodeFromConstraints(
+      { audio: false, video: { facingMode: { ideal: 'environment' } } },
+      video,
+      (result, error) => {
+        if (result) {
+          onCode(result.getText(), result.getBarcodeFormat());
+          controls?.stop();
+        } else if (error && !['NotFoundException','ChecksumException','FormatException'].includes(error.name)) {
+          onError(error);
+        }
       }
-    });
-    return () => { try { controls.stop(); } catch {} };
+    );
+    await video.play().catch(() => {});
+    return () => { try { controls?.stop(); } catch {} try { reader.reset(); } catch {} };
   } catch (error) {
-    reader.reset();
-    const message = error?.name === 'NotAllowedError'
-      ? 'Permiso de cámara denegado. Activa Cámara en Ajustes de Android > Aplicaciones > COMERCIANTE > Permisos.'
-      : error?.name === 'NotFoundException'
+    try { controls?.stop(); } catch {}
+    try { reader.reset(); } catch {}
+    const message = error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError'
+      ? 'Permiso de cámara denegado. En Android activa Cámara en Ajustes > Aplicaciones > COMERCIANTE > Permisos.'
+      : error?.name === 'NotFoundException' || error?.name === 'NotFoundError'
         ? 'No se encontró una cámara disponible.'
         : (error?.message || 'No se pudo iniciar el lector de cámara.');
     throw new Error(message);
