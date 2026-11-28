@@ -1,4 +1,4 @@
-const CACHE = 'comerciante-v04';
+const CACHE = 'comerciante-v05';
 const base = self.registration.scope;
 const CORE = [new URL('./', base).href, new URL('index.html', base).href, new URL('styles.css', base).href, new URL('manifest.webmanifest', base).href];
 self.addEventListener('install', event => {
