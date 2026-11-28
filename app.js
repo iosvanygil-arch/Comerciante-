@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
-import { calculateCostSheet, createCostSheet } from './cost-sheet.js';\nimport { createProduct, upsertProduct, findProductByScan, nextInternalSku, validateImageFile, startCameraScanner, expiryStatus, consumeExpiryLots } from './catalog.js';
+import { calculateCostSheet, createCostSheet } from './cost-sheet.js';
+import { createProduct, upsertProduct, findProductByScan, nextInternalSku, validateImageFile, startCameraScanner, expiryStatus, consumeExpiryLots } from './catalog.js';
 import { createBook, addProduct, updateProductMaster, sale, saleCart, purchase, expense, dailyIPV, saveDailyClosing, trialBalance } from './accounting.js';
 import { listProductsLocal, saveProductLocal, deleteProductLocal } from './local-store.js';
 
