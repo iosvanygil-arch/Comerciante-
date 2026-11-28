@@ -59,3 +59,9 @@ test('rechaza fechas de vencimiento inválidas',()=>{
  const p=createProduct({id:'p3',name:'Producto',stock:2,expiryLots:[{expiry:'fecha-mal',qty:2}]});
  assert.equal(p.expiryLots.length,0);
 });
+
+
+test('bloquea venta de perecederos sin lote vigente o con solo stock sin fecha',()=>{
+ const p=createProduct({id:'p4',name:'Queso',stock:4,perishable:true});
+ assert.throws(()=>consumeExpiryLots(p,1,'2026-11-28'),/Registra lote y vencimiento/);
+});
