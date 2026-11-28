@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createBook, addProduct, purchase, sale, expense, collectReceivable, paySupplier, payExpensePayable, dailyIPV, trialBalance, inventoryValuation, saveDailyClosing, receivables, payables } from './accounting.js';
+import { createBook, addProduct, purchase, sale, expense, collectReceivable, paySupplier, payExpensePayable, dailyIPV, trialBalance, inventoryValuation, saveDailyClosing, receivables, payables, saleCart } from './accounting.js';
 const D='2026-11-13', D2='2026-11-14';
 
 test('flujo positivo: compra pagada, venta efectivo, gasto y cierre cuadrado',()=>{
@@ -100,4 +100,24 @@ test('el cobro posterior no duplica la venta en el desglose del método original
  assert.equal(dailyIPV(b,D).salesByMethod.Efectivo,4);
  assert.equal(dailyIPV(b,D2).salesByMethod.Efectivo,undefined);
  assert.equal(dailyIPV(b,D2).collectionsByMethod.Efectivo,6);
+});
+
+
+test('factura de varios artículos comparte número y registra cliente y garantía',()=>{
+ const b=createBook({date:D}); addProduct(b,{sku:'K',name:'Artículo K'}); addProduct(b,{sku:'L',name:'Artículo L'});
+ purchase(b,{date:D,sku:'K',qty:3,unitCost:2}); purchase(b,{date:D,sku:'L',qty:2,unitCost:3});
+ const invoice=saleCart(b,{date:D,lines:[{sku:'K',qty:1,unitPrice:5},{sku:'L',qty:1,unitPrice:7}],received:6,method:'Efectivo',customer:'Cliente prueba',warranty:'30 días'});
+ assert.equal(invoice.total,1200); assert.equal(invoice.received,600); assert.equal(invoice.balance,600);
+ assert.equal(b.invoices.length,1); assert.equal(b.invoices[0].customer,'Cliente prueba');
+ assert.ok(b.sales.every(s=>s.invoiceId===invoice.id));
+ assert.equal(b.products.K.qty,2); assert.equal(b.products.L.qty,1);
+ assert.equal(trialBalance(b).balanced,true);
+});
+
+test('factura con línea inválida no deja movimientos ni descuenta stock parcialmente',()=>{
+ const b=createBook({date:D}); addProduct(b,{sku:'M',name:'Artículo M'});
+ purchase(b,{date:D,sku:'M',qty:2,unitCost:4});
+ const before=JSON.stringify(b);
+ assert.throws(()=>saleCart(b,{date:D,lines:[{sku:'M',qty:1,unitPrice:8},{sku:'NO-EXISTE',qty:1,unitPrice:5}],received:13}),/Producto no encontrado/);
+ assert.equal(JSON.stringify(b),before);
 });
