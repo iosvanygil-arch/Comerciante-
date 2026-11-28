@@ -1,6 +1,6 @@
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
-import { createProduct, upsertProduct, findProductByScan, nextInternalSku, validateImageFile, startCameraScanner, expiryStatus, consumeExpiryLots } from './catalog.js';
+import { calculateCostSheet, createCostSheet } from './cost-sheet.js';\nimport { createProduct, upsertProduct, findProductByScan, nextInternalSku, validateImageFile, startCameraScanner, expiryStatus, consumeExpiryLots } from './catalog.js';
 import { createBook, addProduct, updateProductMaster, sale, saleCart, purchase, expense, dailyIPV, saveDailyClosing, trialBalance } from './accounting.js';
 import { listProductsLocal, saveProductLocal, deleteProductLocal } from './local-store.js';
 
@@ -11,7 +11,7 @@ let book = JSON.parse(localStorage.getItem('comerciante-book') || 'null') || cre
 const saveBook = () => localStorage.setItem('comerciante-book', JSON.stringify(book));
 const money = n => new Intl.NumberFormat('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n||0));
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function view(name){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.view===name));window.scrollTo(0,0);if(name==='products')renderProducts();if(name==='perishables')renderPerishables();if(name==='invoices')renderInvoices();if(name==='sales')renderSales();if(name==='purchases')renderPurchases();if(name==='expenses')renderExpenses();if(name==='dashboard')renderDashboard();}
+function view(name){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===name));document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.view===name));window.scrollTo(0,0);if(name==='products')renderProducts();if(name==='costSheets')renderCostSheetHistory();if(name==='perishables')renderPerishables();if(name==='invoices')renderInvoices();if(name==='sales')renderSales();if(name==='purchases')renderPurchases();if(name==='expenses')renderExpenses();if(name==='dashboard')renderDashboard();}
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>view(b.dataset.view)));
 document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>view(b.dataset.go)));
 async function load(){products=await listProductsLocal();for(const p of products){if(!book.products[p.sku])addProduct(book,{sku:p.sku,name:p.name,qty:p.stock,unitCost:p.cost,salePrice:p.price});else p.stock=book.products[p.sku].qty;await saveProductLocal(p);}saveBook();renderDashboard();}
@@ -83,5 +83,17 @@ $('exportBackup').onclick=()=>{const payload={app:'COMERCIANTE',version:'0.3.2',
 $('importBackup').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(data.app!=='COMERCIANTE'||!Array.isArray(data.products)||!data.book)throw new Error('Archivo no reconocido');if(!confirm('Esto reemplazará el catálogo y los movimientos actuales. ¿Continuar?'))return;for(const p of products)await deleteProductLocal(p.id);products=[];for(const p of data.products){await saveProductLocal(p);products.push(p);}book=data.book;saveBook();renderDashboard();alert('Copia restaurada correctamente.');}catch(err){alert('No se pudo restaurar: '+err.message)}e.target.value='';};
 async function openScanner(){ $('scanner').hidden=false;$('scanStatus').textContent='Solicitando cámara…';try{stopScan=await startCameraScanner($('camera'),(value,format)=>{ $('scanStatus').textContent=`Código leído: ${value} (${format})`;const p=findProductByScan(products,value);if(p){$('scanner').hidden=true;stopScan?.();editProduct(p.id);}else $('manualCode').value=value;},err=>{$('scanStatus').textContent=err.message;});$('scanStatus').textContent='Cámara activa. Enfoca el código.';}catch(e){$('scanStatus').textContent=e.message;}}
 $('scanOpen').onclick=openScanner;$('scanForm').onclick=openScanner;$('closeScanner').onclick=()=>{$('scanner').hidden=true;stopScan?.();};$('manualSearch').onclick=()=>{const p=findProductByScan(products,$('manualCode').value);if(p){$('scanner').hidden=true;stopScan?.();editProduct(p.id);}else $('scanStatus').textContent='No se encontró ese código en el catálogo.';};
-if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+
+/* Fichas de costo: almacenamiento separado, sin tocar el libro contable. */
+const COST_SHEET_KEY='comerciante-cost-sheets';
+let costSheets=(()=>{try{const value=JSON.parse(localStorage.getItem(COST_SHEET_KEY)||'[]');return Array.isArray(value)?value:[];}catch{return [];}})();
+const csFields={purchaseTotal:'csPurchase',transport:'csTransport',handling:'csHandling',packaging:'csPackaging',otherCosts:'csOther',yieldUnits:'csYield',targetMargin:'csMargin'};
+function costSheetInput(){const values={};for(const [key,id] of Object.entries(csFields))values[key]=Number($(id).value);return values;}
+function renderCostSheetCalculation(){try{const r=calculateCostSheet(costSheetInput());$('csTotal').textContent=money(r.totalCost);$('csUnitCost').textContent=money(r.unitCost);$('csSalePrice').textContent=money(r.salePrice);$('csProfit').textContent=money(r.unitProfit);$('csActualMargin').textContent=money(r.actualMargin)+' %';$('csError').hidden=true;return r;}catch(e){$('csError').textContent=e.message;$('csError').hidden=false;return null;}}
+function renderCostSheetHistory(){const box=$('costSheetHistory');if(!box)return;box.innerHTML=costSheets.length?costSheets.slice().reverse().map(x=>`<article class="cost-history"><div><b>${esc(x.name)}</b><small>${esc(x.code||'Sin código')} · ${esc(x.unit)} · ${esc(String(x.createdAt||'').slice(0,10))}</small></div><div><small>Costo unitario</small><strong>${money(x.unitCost)}</strong></div><div><small>Precio sugerido</small><strong>${money(x.salePrice)}</strong></div></article>`).join(''):'<p class="muted">Todavía no hay fichas guardadas.</p>';}
+Object.values(csFields).forEach(id=>$(id).addEventListener('input',renderCostSheetCalculation));
+$('costSheetForm').addEventListener('submit',e=>{e.preventDefault();try{const result=renderCostSheetCalculation();if(!result)return;const sheet=createCostSheet({name:$('csName').value,code:$('csCode').value,unit:$('csUnit').value,...costSheetInput()});costSheets.push(sheet);localStorage.setItem(COST_SHEET_KEY,JSON.stringify(costSheets));renderCostSheetHistory();alert('Ficha de costo guardada. No se modificó la contabilidad ni el inventario.');}catch(err){alert(err.message);}});
+$('costSheetForm').addEventListener('reset',()=>setTimeout(renderCostSheetCalculation,0));
+renderCostSheetCalculation();
+\nif('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
 load().catch(e=>alert('No se pudo abrir el almacenamiento local: '+e.message));
