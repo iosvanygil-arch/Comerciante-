@@ -212,7 +212,7 @@ export function saleCart(book, { date, lines, received = 0, method = 'Efectivo',
     warranty: String(warranty || '').trim(), method, total,
     tender, received: applied, change: method === 'Efectivo' ? Math.max(0, tender - total) : 0,
     balance: total - applied, saleIds,
-    lines: lines.map(line => ({ sku: line.sku, qty: Number(line.qty), unitPrice: cents(line.unitPrice), lineTotal: cents(Number(line.qty) * Number(line.unitPrice)) }))
+    lines: lines.map(line => ({ sku: line.sku, name: working.products[line.sku].name, qty: Number(line.qty), unitPrice: cents(line.unitPrice), lineTotal: cents(Number(line.qty) * Number(line.unitPrice)) }))
   };
   working.invoices ??= [];
   working.invoices.push(invoice);
