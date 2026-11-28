@@ -92,3 +92,16 @@ export function calculateTcpMonthlyTaxes(input = {}) {
     electronicPayment: electronic
   };
 }
+
+export const TCP_SOCIAL_SECURITY_RULES = Object.freeze({
+  rate: 0.20,
+  paymentFrequencyMonths: 3,
+  legalSource: 'Decreto-Ley 92/2024, arts. 1, 6, 9 y 12; Ley 113, art. 304'
+});
+export function calculateTcpSocialSecurity(input = {}) {
+  const selectedMonthlyBase = nonNegative(input.selectedMonthlyBase ?? 0, 'Base mensual seleccionada');
+  const months = Number(input.months ?? 3);
+  if (![1,2,3].includes(months)) throw new Error('El período debe ser de uno a tres meses.');
+  const monthlyContribution = selectedMonthlyBase * TCP_SOCIAL_SECURITY_RULES.rate;
+  return { selectedMonthlyBase, rate: TCP_SOCIAL_SECURITY_RULES.rate, monthlyContribution, months, periodContribution: monthlyContribution * months };
+}
