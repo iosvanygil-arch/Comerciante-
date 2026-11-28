@@ -12,7 +12,7 @@ const moneyAccount = (method) => method === 'Efectivo' ? 'Caja' : 'Banco';
 export function createBook({ openingCash = 0, date = '2026-01-01' } = {}) {
   const opening = cents(openingCash);
   if (opening < 0) throw new Error('El fondo inicial no puede ser negativo');
-  const book = { date, products: {}, sales: [], receipts: [], purchases: [], expenses: [], cashMoves: [], journal: [], openingCash: opening, nextId: 1, closings: [] };
+  const book = { date, products: {}, sales: [], invoices: [], receipts: [], purchases: [], expenses: [], cashMoves: [], journal: [], openingCash: opening, nextId: 1, closings: [] };
   if (opening > 0) entry(book, date, 'APERTURA-CAJA', [
     { account: 'Caja', debit: opening, credit: 0 }, { account: 'Capital inicial', debit: 0, credit: opening }
   ]);
@@ -175,4 +175,47 @@ export function updateProductMaster(book, { sku, name, salePrice, qty, unitCost,
   if (delta < 0) entry(book, date, `AJUSTE-INVENTARIO-${sku}`, [{account:'Pérdida por ajuste de inventario',debit:-delta,credit:0},{account:'Inventario',debit:0,credit:-delta}]);
   p.name = String(name || sku); p.salePrice = cents(salePrice); p.qty = nextQty; p.unitCost = nextCost;
   return p;
+}
+
+
+// Venta de carrito como una factura única. Se trabaja sobre una copia y solo
+// se confirma el libro cuando todas las líneas y asientos son válidos.
+export function saleCart(book, { date, lines, received = 0, method = 'Efectivo', customer = '', warranty = '' }) {
+  if (!Array.isArray(lines) || !lines.length) throw new Error('La factura no contiene artículos');
+  const working = structuredClone(book);
+  const total = lines.reduce((n, line) => n + cents(Number(line.qty) * Number(line.unitPrice)), 0);
+  const tender = cents(received);
+  if (!Number.isSafeInteger(total) || total <= 0 || tender < 0) throw new Error('Total o importe recibido inválido');
+  if (method === 'Crédito' && tender !== 0) throw new Error('Una venta a crédito no puede tener cobro inicial');
+  if (method !== 'Efectivo' && tender > total) throw new Error('El cobro no puede superar el total');
+  for (const line of lines) {
+    const p = working.products[line.sku], q = Number(line.qty);
+    if (!p) throw new Error('Producto no encontrado: ' + line.sku);
+    assertPositive(q, 'Cantidad');
+    if (q > p.qty) throw new Error('Existencia insuficiente: ' + p.name);
+  }
+  const invoiceId = id(working, 'FACTURA');
+  const applied = method === 'Crédito' ? 0 : Math.min(tender, total);
+  let allocated = 0;
+  const saleIds = [];
+  lines.forEach((line, index) => {
+    const lineTotal = cents(Number(line.qty) * Number(line.unitPrice));
+    const paid = index === lines.length - 1 ? applied - allocated : Math.round(applied * lineTotal / total);
+    allocated += paid;
+    const saleId = sale(working, { date, sku: line.sku, qty: line.qty, total: amount(lineTotal), received: amount(paid), method });
+    const record = working.sales.find(x => x.id === saleId);
+    record.invoiceId = invoiceId;
+    saleIds.push(saleId);
+  });
+  const invoice = {
+    id: invoiceId, date, customer: String(customer || '').trim(),
+    warranty: String(warranty || '').trim(), method, total,
+    tender, received: applied, change: method === 'Efectivo' ? Math.max(0, tender - total) : 0,
+    balance: total - applied, saleIds,
+    lines: lines.map(line => ({ sku: line.sku, qty: Number(line.qty), unitPrice: cents(line.unitPrice), lineTotal: cents(Number(line.qty) * Number(line.unitPrice)) }))
+  };
+  working.invoices ??= [];
+  working.invoices.push(invoice);
+  Object.assign(book, working);
+  return invoice;
 }
