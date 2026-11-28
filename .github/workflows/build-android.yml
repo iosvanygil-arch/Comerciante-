@@ -3,8 +3,9 @@ name: COMERCIANTE - pruebas y APK Android
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
+    paths:
+      - '**'
+      - '!**/*.md'
   workflow_dispatch:
 
 permissions:
