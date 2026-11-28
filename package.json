@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "desktop": "electron .",
-    "build:windows": "npm run build && electron-builder --win nsis portable"
+    "build:windows": "npm run build && electron-builder --win nsis portable --publish never"
   },
   "dependencies": {
     "jsbarcode": "^3.11.6",
