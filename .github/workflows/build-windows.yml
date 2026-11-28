@@ -1,0 +1,57 @@
+name: COMERCIANTE - construir Windows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'electron.cjs'
+      - 'app.js'
+      - 'accounting.js'
+      - 'catalog.js'
+      - 'local-store.js'
+      - 'index.html'
+      - 'styles.css'
+      - 'vite.config.js'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: comerciante-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Pruebas y empaquetado Windows
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+
+      - name: Ejecutar pruebas
+        run: npm test
+
+      - name: Construir instalador y versión portable
+        run: npm run build:windows
+
+      - name: Publicar instalador y portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: COMERCIANTE-Windows
+          path: |
+            release/*.exe
+          if-no-files-found: error
+          retention-days: 30
