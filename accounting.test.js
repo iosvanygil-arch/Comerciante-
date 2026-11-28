@@ -108,7 +108,7 @@ test('factura de varios artículos comparte número y registra cliente y garant�
  purchase(b,{date:D,sku:'K',qty:3,unitCost:2}); purchase(b,{date:D,sku:'L',qty:2,unitCost:3});
  const invoice=saleCart(b,{date:D,lines:[{sku:'K',qty:1,unitPrice:5},{sku:'L',qty:1,unitPrice:7}],received:6,method:'Efectivo',customer:'Cliente prueba',warranty:'30 días'});
  assert.equal(invoice.total,1200); assert.equal(invoice.received,600); assert.equal(invoice.balance,600);
- assert.equal(b.invoices.length,1); assert.equal(b.invoices[0].customer,'Cliente prueba');
+ assert.equal(b.invoices.length,1); assert.equal(b.invoices[0].customer,'Cliente prueba'); assert.equal(b.invoices[0].lines[0].name,'Artículo K');
  assert.ok(b.sales.every(s=>s.invoiceId===invoice.id));
  assert.equal(b.products.K.qty,2); assert.equal(b.products.L.qty,1);
  assert.equal(trialBalance(b).balanced,true);
