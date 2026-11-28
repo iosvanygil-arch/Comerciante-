@@ -1,7 +1,7 @@
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
 import { createProduct, upsertProduct, findProductByScan, nextInternalSku, validateImageFile, startCameraScanner } from './catalog.js';
-import { createBook, addProduct, updateProductMaster, sale, purchase, expense, dailyIPV, saveDailyClosing, trialBalance } from './accounting.js';
+import { createBook, addProduct, updateProductMaster, sale, saleCart, purchase, expense, dailyIPV, saveDailyClosing, trialBalance } from './accounting.js';
 import { listProductsLocal, saveProductLocal, deleteProductLocal } from './local-store.js';
 
 const $ = id => document.getElementById(id);
@@ -63,24 +63,19 @@ $('completeSale').onclick=async()=>{
   if(method!=='Efectivo'&&tender>total+0.000001)throw new Error('El importe recibido no puede superar el total en cobros que no sean efectivo.');
   const applied=method==='Crédito'?0:Math.min(tender,total);
   for(const line of cart){const p=products.find(x=>x.sku===line.sku);if(!p||line.qty>Number(p.stock))throw new Error('Stock insuficiente para '+(p?.name||line.sku));}
-  let remaining=applied, docs=[];
-  for(let i=0;i<cart.length;i++){
-   const line=cart[i],lineTotal=Number((line.qty*line.price).toFixed(2));
-   const paid=i===cart.length-1?remaining:Number((total?lineTotal/total*applied:0).toFixed(2));
-   const doc=sale(book,{date,sku:line.sku,qty:line.qty,total:lineTotal,received:paid,method:method==='Crédito'?'Crédito':method});
-   remaining=Number((remaining-paid).toFixed(2));docs.push(doc);
-  }
+  const customer=$('posCustomer').value.trim(),warranty=$('posWarranty').value.trim();
+  const invoice=saleCart(book,{date,lines:cart.map(x=>({sku:x.sku,qty:x.qty,unitPrice:x.price})),received:tender,method,customer,warranty});
   for(const line of cart){const p=products.find(x=>x.sku===line.sku);p.stock=book.products[line.sku].qty;await saveProductLocal(p);}
   saveBook();renderDashboard();
-  const receiptId=docs[0],customer=$('posCustomer').value.trim(),warranty=$('posWarranty').value.trim(),change=method==='Efectivo'?Math.max(0,tender-total):0;
-  $('receiptPrint').innerHTML=`<div class="receiptinner"><h2>COMERCIANTE</h2><p>COMPROBANTE DE VENTA</p><p>Fecha: ${esc(date)}<br>Documento: ${esc(receiptId)}${docs.length>1?' + '+(docs.length-1)+' línea(s)':''}<br>Cliente: ${esc(customer||'Consumidor final')}</p><hr>${cart.map(x=>{const p=products.find(v=>v.sku===x.sku);return `<p>${esc(p?.name||x.sku)}<br>${x.qty} × ${money(x.price)} = <b>${money(x.qty*x.price)}</b></p>`}).join('')}<hr><h3>TOTAL: ${money(total)}</h3><p>Forma de cobro: ${esc(method)}<br>Recibido aplicado: ${money(total)}<br>${method==='Efectivo'?'Cambio: '+money(change):'Saldo pendiente: '+money(method==='Crédito'?total:0)}</p>${warranty?'<p>Garantía: '+esc(warranty)+'</p>':''}<p>Gracias por su compra.</p></div>`;
+  const receiptId=invoice.id,change=invoice.change;
+  $('receiptPrint').innerHTML=`<div class="receiptinner"><h2>COMERCIANTE</h2><p>COMPROBANTE DE VENTA</p><p>Fecha: ${esc(date)}<br>Factura: ${esc(receiptId)}<br>Cliente: ${esc(customer||'Consumidor final')}</p><hr>${cart.map(x=>{const p=products.find(v=>v.sku===x.sku);return `<p>${esc(p?.name||x.sku)}<br>${x.qty} × ${money(x.price)} = <b>${money(x.qty*x.price)}</b></p>`}).join('')}<hr><h3>TOTAL: ${money(total)}</h3><p>Forma de cobro: ${esc(method)}<br>Recibido: ${money(invoice.tender/100)}<br>Aplicado: ${money(invoice.received/100)}<br>${method==='Efectivo'?'Cambio: '+money(change/100):'Saldo pendiente: '+money(invoice.balance/100)}</p>${warranty?'<p>Garantía: '+esc(warranty)+'</p>':''}<p>Gracias por su compra.</p></div>`;
   cart=[];renderCart();renderRecent();$('posSearch').focus();
   if(confirm('Venta registrada. ¿Imprimir comprobante?'))window.print();
  }catch(err){alert(err.message);}
 };
 function renderRecent(){ $('recentSales').innerHTML=book.sales.slice(-8).reverse().map(s=>{const p=products.find(x=>x.sku===s.sku);return `<p>${esc(p?.name||s.sku)} · ${s.qty} · ${money(s.total/100)} · ${esc(s.date)}</p>`}).join('')||'<p class="muted">Todavía no hay ventas.</p>'; }
 $('reportDate').value=today();$('runReport').onclick=()=>{try{const r=dailyIPV(book,$('reportDate').value,Number($('openingCash').value),Number($('countedCash').value));const vals=[['Ventas',r.sales],['Cobros del día',r.collections],['Ventas a crédito',r.creditSales],['Costo de ventas',r.costOfSales],['Utilidad bruta',r.grossProfit],['Compras',r.purchases],['Gastos',r.expenses],['Efectivo esperado',r.expectedCash],['Efectivo contado',r.countedCash],['Diferencia',r.difference]];$('reportResult').innerHTML=vals.map(([k,v])=>`<article class="metric"><small>${k}</small><strong>${money(v)}</strong></article>`).join('')+`<article class="metric"><small>Estado de caja</small><strong>${r.cashStatus}</strong></article>`;const tb=trialBalance(book);$('trialBalance').innerHTML=`Debe: ${money(tb.totalDebit)} · Haber: ${money(tb.totalCredit)} · Diferencia: ${money(tb.difference)} · ${tb.balanced?'Balanceado':'REVISAR'}`;saveDailyClosing(book,{date:r.date,openingCash:Number($('openingCash').value),countedCash:Number($('countedCash').value)});saveBook();}catch(e){alert(e.message)}};
-$('exportBackup').onclick=()=>{const payload={app:'COMERCIANTE',version:'0.3.0',exportedAt:new Date().toISOString(),products,book};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`COMERCIANTE-respaldo-${today()}.json`;a.click();URL.revokeObjectURL(a.href);};
+$('exportBackup').onclick=()=>{const payload={app:'COMERCIANTE',version:'0.3.2',exportedAt:new Date().toISOString(),products,book};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`COMERCIANTE-respaldo-${today()}.json`;a.click();URL.revokeObjectURL(a.href);};
 $('importBackup').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(data.app!=='COMERCIANTE'||!Array.isArray(data.products)||!data.book)throw new Error('Archivo no reconocido');if(!confirm('Esto reemplazará el catálogo y los movimientos actuales. ¿Continuar?'))return;for(const p of products)await deleteProductLocal(p.id);products=[];for(const p of data.products){await saveProductLocal(p);products.push(p);}book=data.book;saveBook();renderDashboard();alert('Copia restaurada correctamente.');}catch(err){alert('No se pudo restaurar: '+err.message)}e.target.value='';};
 async function openScanner(){ $('scanner').hidden=false;$('scanStatus').textContent='Solicitando cámara…';try{stopScan=await startCameraScanner($('camera'),(value,format)=>{ $('scanStatus').textContent=`Código leído: ${value} (${format})`;const p=findProductByScan(products,value);if(p){$('scanner').hidden=true;stopScan?.();editProduct(p.id);}else $('manualCode').value=value;},err=>{$('scanStatus').textContent=err.message;});$('scanStatus').textContent='Cámara activa. Enfoca el código.';}catch(e){$('scanStatus').textContent=e.message;}}
 $('scanOpen').onclick=openScanner;$('scanForm').onclick=openScanner;$('closeScanner').onclick=()=>{$('scanner').hidden=true;stopScan?.();};$('manualSearch').onclick=()=>{const p=findProductByScan(products,$('manualCode').value);if(p){$('scanner').hidden=true;stopScan?.();editProduct(p.id);}else $('scanStatus').textContent='No se encontró ese código en el catálogo.';};
