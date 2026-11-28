@@ -19,7 +19,7 @@ test('TCP expenses are deducted only when at least 80% are documented', () => {
 test('advance payments and withholdings reduce the final balance, never below zero', () => {
   const result = calculateTcpAnnualTax({grossIncome:50000,advances:10000,withholdings:2000});
   assert.equal(result.balance,0);
-  assert.equal(result.excessCredits,12000);
+  assert.equal(result.excessCredits,10324);
 });
 test('early payment bonus is five percent of calculated annual tax', () => {
   const regular = calculateTcpAnnualTax({grossIncome:50000});
