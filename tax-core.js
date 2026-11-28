@@ -28,6 +28,7 @@ export function calculateTcpAnnualTax(input = {}) {
   const otherDeductions = nonNegative(input.otherDeductions ?? 0, 'Otras deducciones');
   const advances = nonNegative(input.advances ?? 0, 'Cuotas anticipadas');
   const withholdings = nonNegative(input.withholdings ?? 0, 'Retenciones');
+  const approvedIncentiveCredit = nonNegative(input.approvedIncentiveCredit ?? 0, 'Bonificaciones fiscales aprobadas');
   if (documented > expenses) throw new Error('Los gastos justificados no pueden superar los gastos declarados.');
   const evidenceRatio = expenses === 0 ? 1 : documented / expenses;
   const expenseDeductionAllowed = evidenceRatio >= TCP_TAX_RULES.expenseEvidenceThreshold;
