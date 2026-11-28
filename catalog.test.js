@@ -51,7 +51,7 @@ test('consume primero lote vigente más próximo y bloquea lotes vencidos',()=>{
  ]});
  consumeExpiryLots(p,2,'2026-11-28');
  assert.equal(p.expiryLots.find(x=>x.batch==='Vencido').qty,2);
- assert.equal(p.expiryLots.find(x=>x.batch==='Próximo').qty,0);
+ assert.equal(p.expiryLots.some(x=>x.batch==='Próximo'),false);p.stock=3;
  assert.throws(()=>consumeExpiryLots(p,4,'2026-11-28'),/existencias vigentes suficientes/);
 });
 
