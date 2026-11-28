@@ -76,13 +76,14 @@ export function expiryStatus(product, today = new Date().toISOString().slice(0,1
     return { ...l, daysLeft: delta, status: delta < 0 ? 'VENCIDO' : delta <= warningDays ? 'POR VENCER' : 'VIGENTE' };
   }).sort((a,b) => a.expiry.localeCompare(b.expiry));
   const tracked = lots.reduce((n,l)=>n+l.qty,0);
-  return { lots, tracked, untracked: Math.max(0, Number(product.stock || 0) - tracked), alerts: lots.filter(l=>l.status!=='VIGENTE') };
+  const availableTracked = lots.filter(l=>l.status!=='VENCIDO').reduce((n,l)=>n+l.qty,0);
+  return { lots, tracked, availableTracked, untracked: Math.max(0, Number(product.stock || 0) - tracked), alerts: lots.filter(l=>l.status!=='VIGENTE') };
 }
 
 export function consumeExpiryLots(product, quantity, today = new Date().toISOString().slice(0,10)) {
   let remaining = Number(quantity);
   const status = expiryStatus(product, today);
-  if (status.tracked && status.tracked + 1e-8 < remaining) throw new Error('Lotes con fecha insuficientes para ' + product.name);
+  if (status.tracked && status.availableTracked + status.untracked + 1e-8 < remaining) throw new Error('No hay existencias vigentes suficientes para ' + product.name);
   const next = (product.expiryLots || []).map(l => ({ ...l }));
   for (const lot of next.sort((a,b)=>a.expiry.localeCompare(b.expiry))) {
     if (remaining <= 1e-8) break;
