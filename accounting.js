@@ -124,7 +124,7 @@ export function dailyIPV(book, date, openingCash = date === book.date ? amount(b
   const expected = cents(openingCash) + cashIn - cashOut;
   const difference = countedCash === null ? null : cents(countedCash) - expected;
   const salesByMethod = {}, collectionsByMethod = {}, cashOutByMethod = {};
-  for (const s of sales) salesByMethod[s.method] = (salesByMethod[s.method] || 0) + s.received;
+  for (const s of sales) salesByMethod[s.method] = (salesByMethod[s.method] || 0) + (s.initialReceived ?? s.received);
   for (const m of book.cashMoves.filter(x => x.date === date)) {
     if (m.direction === 'in') collectionsByMethod[m.method] = (collectionsByMethod[m.method] || 0) + m.value;
     else cashOutByMethod[m.method] = (cashOutByMethod[m.method] || 0) + m.value;
